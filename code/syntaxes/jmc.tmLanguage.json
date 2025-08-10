@@ -1,0 +1,218 @@
+{
+	"name": "jmc",
+	"scopeName": "source.jmc",
+	"patterns": [
+		{
+			"include": "#comments"
+		},
+		{
+			"include": "#strings"
+		},
+		{
+			"include": "#keywords"
+		},
+		{
+			"include": "#classes"
+		},
+		{
+			"include": "#functions"
+		},
+		{
+			"include": "#variables-and-selectors"
+		},
+		{
+			"include": "#constants"
+		}
+	],
+	"repository": {
+		"comments": {
+			"patterns": [
+				{
+					"name": "comment.line.double-slash.jmc",
+					"match": "//.*$"
+				},
+				{
+					"name": "comment.line.number-sign.jmc",
+					"match": "#.*$"
+				},
+				{
+					"name": "comment.block.jmc",
+					"begin": "/\\*",
+					"end": "\\*/"
+				}
+			]
+		},
+		"strings": {
+			"patterns": [
+				{
+					"name": "string.quoted.double.multiline.jmc",
+					"begin": "\"\"\"",
+					"end": "\"\"\"",
+					"patterns": [
+						{
+							"include": "#string-interpolation"
+						}
+					]
+				},
+				{
+					"name": "string.quoted.single.multiline.jmc",
+					"begin": "'''",
+					"end": "'''",
+					"patterns": [
+						{
+							"include": "#string-interpolation"
+						}
+					]
+				},
+				{
+					"name": "string.quoted.template.multiline.jmc",
+					"begin": "```",
+					"end": "```",
+					"patterns": [
+						{
+							"include": "#string-interpolation"
+						}
+					]
+				},
+				{
+					"name": "string.quoted.double.jmc",
+					"begin": "\"",
+					"end": "\"",
+					"patterns": [
+						{
+							"include": "#string-interpolation"
+						}
+					]
+				},
+				{
+					"name": "string.quoted.single.jmc",
+					"begin": "'",
+					"end": "'",
+					"patterns": [
+						{
+							"include": "#string-interpolation"
+						}
+					]
+				},
+				{
+					"name": "string.quoted.template.jmc",
+					"begin": "`",
+					"end": "`",
+					"patterns": [
+						{
+							"include": "#string-interpolation"
+						}
+					]
+				}
+			]
+		},
+		"string-interpolation": {
+			"patterns": [
+				{
+					"name": "constant.character.escape.jmc",
+					"match": "\\\\."
+				},
+				{
+					"name": "meta.embedded.line.jmc",
+					"match": "(\\$)([a-zA-Z_][\\w.]*)",
+					"captures": {
+						"1": {
+							"name": "punctuation.definition.variable.jmc"
+						},
+						"2": {
+							"name": "variable.other.interpolated.jmc"
+						}
+					}
+				}
+			]
+		},
+		"keywords": {
+			"patterns": [
+				{
+					"name": "keyword.control.jmc",
+					"match": "\\b(if|else|for|while|return|import|with)\\b"
+				},
+				{
+					"name": "storage.type.jmc",
+					"match": "\\b(class|function|var)\\b"
+				},
+				{
+					"name": "support.function.builtin.jmc",
+					"match": "\\b(execute|run|say|tellraw|give|summon|tp|kill|setblock|fill|title|scoreboard)\\b"
+				},
+				{
+					"name": "support.type.primitive.jmc",
+					"match": "\\b(score|any|string|boolean|selector|int|float)\\b"
+				}
+			]
+		},
+		"classes": {
+			"patterns": [
+				{
+					"name": "entity.name.type.class.jmc",
+					"match": "(?i)(?<=\\bclass\\s+)[a-zA-Z_][\\w]*"
+				},
+				{
+					"name": "support.class.jmc",
+					"match": "\\b([a-zA-Z][\\w]*)(?=\\.)"
+				}
+			]
+		},
+		"functions": {
+			"patterns": [
+				{
+					"begin": "(?i)\\b(function)\\s+",
+					"beginCaptures": {
+						"1": {
+							"name": "storage.type.function.jmc"
+						}
+					},
+					"end": "(?=\\s*\\()",
+					"patterns": [
+						{
+							"name": "entity.name.function.jmc",
+							"match": "[a-zA-Z_][\\w.]*"
+						}
+					]
+				},
+				{
+					"name": "entity.name.function.jmc",
+					"match": "\\b([a-zA-Z_][\\w.]*?)(?=\\s*\\()"
+				}
+			]
+		},
+		"variables-and-selectors": {
+			"patterns": [
+				{
+					"name": "variable.other.jmc",
+					"match": "(\\$|::)[a-zA-Z_][\\w.]*"
+				},
+				{
+					"name": "variable.other.constant.jmc",
+					"match": "\\$\\([a-zA-Z_][\\w]*\\)"
+				},
+				
+				{
+					"name": "variable.language.decorator.jmc",
+					"match": "@[a-zA-Z]+"
+				},
+				{
+					"name": "variable.language.selector.jmc",
+					"match": "@[asepr](?=\\[|$|\\s)"
+				}
+			]
+		},
+		"constants": {
+			"patterns": [
+				{
+					"name": "constant.numeric.integer.jmc",
+					"match": "\\b\\d+\\b"
+				},
+				{
+					"name": "constant.language.boolean.jmc",
+					"match": "\\b(true|false)\\b"
+				}
+			]
+		}
+	}
+}

@@ -1,0 +1,296 @@
+{
+    "print": {
+        "prefix": "print",
+        "body": [
+            "print(${1:value});"
+        ],
+        "description": "Print a variable for all players in chat."
+    },
+    "printf": {
+        "prefix": "printf",
+        "body": [
+            "printf(${1:text});"
+        ],
+        "description": "Print a text for all players in chat. Works the same as Text.tellraw(@a, text);"
+    },
+    "Player.onEvent": {
+        "prefix": "Player.onEvent",
+        "body": [
+            "Player.onEvent(${1:criteria}, ${2:function});"
+        ],
+        "description": "Run commands on positive change of scoreboard and reset the score."
+    },
+    "Player.firstJoin": {
+        "prefix": "Player.firstJoin",
+        "body": [
+            "Player.firstJoin(${1:function});"
+        ],
+        "description": "Run commands as player and at player when joining the World for the first time."
+    },
+    "Player.rejoin": {
+        "prefix": "Player.rejoin",
+        "body": [
+            "Player.rejoin(${1:function});"
+        ],
+        "description": "Run commands as player and at player when a player leaves and rejoins a world. Will not run on first join."
+    },
+    "Player.join": {
+        "prefix": "Player.join",
+        "body": [
+            "Player.join(${1:function});"
+        ],
+        "description": "Run commands as player and at player every time a player joins the world."
+    },
+    "Player.die": {
+        "prefix": "Player.die",
+        "body": [
+            "Player.die(${1:onDeath}, ${2:onRespawn});"
+        ],
+        "description": "Run onDeath function when a player dies, and onRespawn function when they respawn."
+    },
+    "Text.tellraw": {
+        "prefix": "Text.tellraw",
+        "body": [
+            "Text.tellraw(${1:selector}, ${2:message});"
+        ],
+        "description": "Use formatted text on tellraw."
+    },
+    "Text.title": {
+        "prefix": "Text.title",
+        "body": [
+            "Text.title(${1:selector}, ${2:message});"
+        ],
+        "description": "Use formatted text on title."
+    },
+    "Text.subtitle": {
+        "prefix": "Text.subtitle",
+        "body": [
+            "Text.subtitle(${1:selector}, ${2:message});"
+        ],
+        "description": "Use formatted text on subtitle."
+    },
+    "Text.actionbar": {
+        "prefix": "Text.actionbar",
+        "body": [
+            "Text.actionbar(${1:selector}, ${2:message});"
+        ],
+        "description": "Use formatted text on actionbar."
+    },
+    "Math.sqrt": {
+        "prefix": "Math.sqrt",
+        "body": [
+            "Math.sqrt(${1:n});"
+        ],
+        "description": "Calculates the floored square root of an integer scoreboard using the Newton-Raphson method."
+    },
+    "Math.random": {
+        "prefix": "Math.random",
+        "body": [
+            "Math.random(${1:score}, ${2:min}, ${3:max});"
+        ],
+        "description": "Simplify integer randomization process using Linear congruential generator."
+    },
+    "Timer.add": {
+        "prefix": "Timer.add",
+        "body": [
+            "Timer.add(${1:objective}, ${2|'runOnce','runTick','none'|}, ${3:selector}, ${4:function});"
+        ],
+        "description": "Create a scoreboard timer with 3 run modes: runOnce, runTick, none."
+    },
+    "Timer.set": {
+        "prefix": "Timer.set",
+        "body": [
+            "Timer.set(${1:objective}, ${2:selector}, ${3:tick});"
+        ],
+        "description": "Set entity's score to start the timer."
+    },
+    "Timer.isOver": {
+        "prefix": "Timer.isOver",
+        "body": [
+            "Timer.isOver(${1:objective}, ${2:@s});"
+        ],
+        "description": "Returns true if the timer for the selector is over."
+    },
+    "Recipe.table": {
+        "prefix": "Recipe.table",
+        "body": [
+            "Recipe.table(${1:recipe}, baseItem: ${2:knowledge_book}, onCraft: ${3:()=>{}});"
+        ],
+        "description": "Create a custom recipe for a Crafting Table, allowing NBT in the result and running a function on craft."
+    },
+    "Hardcode.repeat": {
+        "prefix": "Hardcode.repeat",
+        "body": [
+            "Hardcode.repeat(${1:indexString}, ${2:function}, ${3:start}, ${4:stop}, ${5:step});"
+        ],
+        "description": "Repeat a function, replacing indexString with a number in a given range."
+    },
+    "Hardcode.repeatList": {
+        "prefix": "Hardcode.repeatList",
+        "body": [
+            "Hardcode.repeatList(${1:indexString}, ${2:function}, ${3:strings});"
+        ],
+        "description": "Repeat a function, iterating over a list and replacing indexString with list items."
+    },
+    "Hardcode.repeatLists": {
+        "prefix": "Hardcode.repeatLists",
+        "body": [
+            "Hardcode.repeatLists(${1:indexStrings}, ${2:function}, ${3:stringLists});"
+        ],
+        "description": "Repeat a function, iterating over multiple lists simultaneously."
+    },
+    "Hardcode.switch": {
+        "prefix": "Hardcode.switch",
+        "body": [
+            "Hardcode.switch(${1:switch}, ${2:indexString}, ${3:function}, ${4:count}, ${5:step});"
+        ],
+        "description": "Similar to Hardcode.repeat() but for switch statements."
+    },
+    "Trigger.setup": {
+        "prefix": "Trigger.setup",
+        "body": [
+            "Trigger.setup(${1:objective}, {${2:1: ()=>{}}});"
+        ],
+        "description": "Setup a trigger system for custom commands. Players can use /trigger <objective> set <id>."
+    },
+    "Trigger.add": {
+        "prefix": "Trigger.add",
+        "body": [
+            "Trigger.add(${1:objective}, ${2:function});"
+        ],
+        "description": "A shortcut to add a single trigger command."
+    },
+    "Predicate.locations": {
+        "prefix": "Predicate.locations",
+        "body": [
+            "Predicate.locations(${1:name}, ${2:predicate}, ${3:xMin}, ${4:xMax}, ${5:yMin}, ${6:yMax}, ${7:zMin}, ${8:zMax});"
+        ],
+        "description": "Automate the creation of massive location-checking predicates."
+    },
+    "Particle.circle": {
+        "prefix": "Particle.circle",
+        "body": [
+            "Particle.circle(${1:particle}, ${2:radius}, ${3:spread});"
+        ],
+        "description": "Make circle shaped particles."
+    },
+    "Particle.spiral": {
+        "prefix": "Particle.spiral",
+        "body": [
+            "Particle.spiral(${1:particle}, ${2:radius}, ${3:height}, ${4:spread});"
+        ],
+        "description": "Make spiral shaped particles."
+    },
+    "Particle.helix": {
+        "prefix": "Particle.helix",
+        "body": [
+            "Particle.helix(${1:particle}, ${2:radius}, ${3:height}, ${4:spread});"
+        ],
+        "description": "Alias for Particle.spiral(). Makes spiral shaped particles."
+    },
+    "Particle.cylinder": {
+        "prefix": "Particle.cylinder",
+        "body": [
+            "Particle.cylinder(${1:particle}, ${2:radius}, ${3:height}, ${4:spreadXZ}, ${5:spreadY});"
+        ],
+        "description": "Make cylinder shaped particles."
+    },
+    "Particle.line": {
+        "prefix": "Particle.line",
+        "body": [
+            "Particle.line(${1:particle}, ${2:distance}, ${3:spread});"
+        ],
+        "description": "Make line shaped particles."
+    },
+    "Particle.square": {
+        "prefix": "Particle.square",
+        "body": [
+            "Particle.square(${1:particle}, ${2:length}, ${3:spread}, ${4:align});"
+        ],
+        "description": "Make square shaped particles. Align can be 'corner' or 'center'."
+    },
+    "Particle.cube": {
+        "prefix": "Particle.cube",
+        "body": [
+            "Particle.cube(${1:particle}, ${2:length}, ${3:spread}, ${4:align});"
+        ],
+        "description": "Make cube shaped particles. Align can be 'corner' or 'center'."
+    },
+    "Particle.sphere": {
+        "prefix": "Particle.sphere",
+        "body": [
+            "Particle.sphere(${1:particle}, ${2:radius}, ${3:spread});"
+        ],
+        "description": "Make sphere shaped particles."
+    },
+    "Raycast.simple": {
+        "prefix": "Raycast.simple",
+        "body": [
+            "Raycast.simple(${1:onHit}, onStep:${2:()=>{}}, interval:${3:0.1});"
+        ],
+        "description": "Cast a simple raycast with options for collision detection and callbacks."
+    },
+    "JMC.put": {
+        "prefix": "JMC.put",
+        "body": [
+            "JMC.put(${1:command});"
+        ],
+        "description": "Ignore any parsing and output the command directly. Used to bypass compiler failures."
+    },
+    "JMC.python": {
+        "prefix": "JMC.python",
+        "body": [
+            "JMC.python(${1:pythonCode}, env: ${2:env}, jmc: ${3:false});"
+        ],
+        "description": "Allows you to use python code directly inside JMC. Use emit() in Python to return commands."
+    },
+    "JMC.pythonFile": {
+        "prefix": "JMC.pythonFile",
+        "body": [
+            "JMC.pythonFile(${1:file}, env: ${2:env}, jmc: ${3:false});"
+        ],
+        "description": "Allows you to use a Python file directly inside JMC. The file path is relative to the .jmc file."
+    },
+    "String.isEqual": {
+        "prefix": "String.isEqual",
+        "body": [
+            "String.isEqual(${1:source}, ${2:path}, ${3:string});"
+        ],
+        "description": "Checks if the value inside an NBT path is equal to a given string."
+    },
+    "Object.isEqual": {
+        "prefix": "Object.isEqual",
+        "body": [
+            "Object.isEqual(${1:source1}, ${2:path1}, ${3:source2}, ${4:path2});"
+        ],
+        "description": "Checks if the value inside an NBT path is equal to the value inside another NBT path."
+    },
+    "Scoreboard.add": {
+        "prefix": "Scoreboard.add",
+        "body": [
+            "Scoreboard.add(${1:objective}, ${2:criteria}, ${3:displayName});"
+        ],
+        "description": "Add a scoreboard objective, an alternative to vanilla syntax."
+    },
+    "Bossbar.add": {
+        "prefix": "Bossbar.add",
+        "body": [
+            "Bossbar.add(${1:id}, ${2:displayName});"
+        ],
+        "description": "Add a bossbar, an alternative to vanilla syntax."
+    },
+    "Bossbar.setName": {
+        "prefix": "Bossbar.setName",
+        "body": [
+            "Bossbar.setName(${1:id}, ${2:displayName});"
+        ],
+        "description": "Change the name of an existing bossbar, an alternative to vanilla syntax."
+    },
+    "Array.forEach": {
+        "prefix": "Array.forEach",
+        "body": [
+            "Array.forEach(${1:target}, ${2:path}, ${3:function});"
+        ],
+        "description": "Iterate over an NBT Array. Access elements inside the function via the path ending in [0]."
+    }
+}

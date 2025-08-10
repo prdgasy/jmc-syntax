@@ -1,0 +1,58 @@
+{
+  "name": "jmc-extension",
+  "displayName": "JMC Extension",
+  "description": "VSCode tools for JMC",
+  "version": "0.2.1",
+  "author": "ProdigeGasy",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "icon": "icon.png",
+  "main": "./extension.js",
+  "activationEvents": [
+    "onLanguage:jmc"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "jmc",
+        "aliases": [
+          "JMC",
+          "jmc"
+        ],
+        "extensions": [
+          ".jmc"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "jmc",
+        "scopeName": "source.jmc",
+        "path": "./syntaxes/jmc.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "jmc.compile",
+        "title": "Compile"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "jmc.compile",
+          "group": "navigation",
+          "when": "resourceLangId == jmc"
+        }
+      ]
+    }
+  },
+  "categories": [
+    "Other"
+  ],
+  "scripts": {},
+  "devDependencies": {},
+  "dependencies": {}
+}
