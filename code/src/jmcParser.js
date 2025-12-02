@@ -64,6 +64,8 @@ function parseParams(body) {
         .filter(Boolean);
 }
 
+// src/jmcParser.js
+
 function paramType(name) {
     const types = {
         value: 'Scoreboard | FormattedString', function: 'Function', selector: 'TargetSelector',
@@ -90,6 +92,11 @@ function paramType(name) {
         path: 'Keyword', string: 'string', source1: 'string', path1: 'Keyword',
         source2: 'string', path2: 'Keyword', displayname: 'FormattedString',
         team: 'Keyword', members: 'TargetSelector', id: 'Keyword', property: 'Keyword',
+
+        // --- AJOUTS ---
+        tag: 'Keyword',
+        removefrom: 'TargetSelector'
+        // ----------------
     };
     return types[name.toLowerCase()] || 'any';
 }

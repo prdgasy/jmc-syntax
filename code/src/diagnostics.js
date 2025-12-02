@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 
 const { getDefinedFunctionsFromText, getAllCallIdentifiers } = require('./jmcParser');
+const { jmcKeywords, mcCommands, functionExceptionList } = require('./constants');
 
 const diagnostics = vscode.languages.createDiagnosticCollection('jmcDiagnostics');
 const fadeDecoration = vscode.window.createTextEditorDecorationType({ opacity: '0.5' });
@@ -17,32 +18,8 @@ const ignoreContentDecoration = vscode.window.createTextEditorDecorationType({
     fontStyle: 'italic',
 });
 
-const functionExceptionList = ['if', 'while', 'for'];
-const jmcKeywords = ["class", "function", "if", "else", "for", "while", "return", "import"];
-const mcCommands = [
-    'advancement', 'attribute', 'ban', 'banip',
-    'banlist', 'bossbar', 'clear', 'clone',
-    'damage', 'data', 'datapack', 'debug',
-    'defaultgamemode', 'deop', 'difficulty', 'effect',
-    'enchant', 'execute', 'experience', 'fill',
-    'fillbiome', 'forceload', 'function', 'gamemode',
-    'gamerule', 'give', 'help', 'item', 'trigger',
-    'jfr', 'kick', 'kill', 'list',
-    'locate', 'loot', 'me', 'msg',
-    'op', 'pardon', 'pardonip', 'particle',
-    'place', 'playsound', 'publish', 'random',
-    'recipe', 'reload', 'return', 'ride',
-    'rotate', 'save', 'save-all', 'save-off',
-    'save-on', 'say', 'schedule', 'scoreboard',
-    'seed', 'setblock', 'setidletimeout', 'setworldspawn',
-    'spawnpoint', 'spectate', 'spreadplayers', 'stop',
-    'stopsound', 'summon', 'tag', 'team',
-    'teammsg', 'teleport', 'tellraw',
-    'tick', 'time', 'title', 'tp',
-    'transfer', 'trigger', 'version', 'weather',
-    'whitelist', 'worldborder'
-];
 let moduleSnippets = {};
+// Cette variable doit être globale pour être vue par isValid
 let definedFunctionsInDoc = [];
 
 function setDiagnosticsSnippets(snippets) {
@@ -63,10 +40,8 @@ function getImportedFiles(document) {
     while ((match = importRegex.exec(text)) !== null) {
         const importPath = match[1];
 
-        // Cas import de type dossier avec "*"
         if (importPath.endsWith('/*')) {
-            // chemin du dossier à partir de rootPath + chemin relatif
-            const folderRelative = importPath.slice(0, -2); // enlever "/*"
+            const folderRelative = importPath.slice(0, -2);
             const folderFullPath = path.resolve(rootPath, folderRelative);
 
             if (fs.existsSync(folderFullPath) && fs.statSync(folderFullPath).isDirectory()) {
@@ -79,7 +54,6 @@ function getImportedFiles(document) {
             }
         }
         else if (importPath === '*') {
-            // importer tous les fichiers .jmc à la racine (rootPath)
             const files = fs.readdirSync(rootPath);
             for (const f of files) {
                 if (f.endsWith('.jmc')) {
@@ -88,7 +62,6 @@ function getImportedFiles(document) {
             }
         }
         else {
-            // import simple fichier .jmc
             let filePath = importPath;
             if (!filePath.endsWith('.jmc')) {
                 filePath += '.jmc';
@@ -100,21 +73,183 @@ function getImportedFiles(document) {
         }
     }
 
-    // Toujours inclure le fichier courant
     importedFiles.add(path.resolve(document.uri.fsPath));
-
     return [...importedFiles];
 }
 
 
 function isRangeIgnored(range, ignoredZones) {
     for (const zone of ignoredZones) {
-        // .intersection retourne la partie commune. Si non null, il y a chevauchement.
         if (zone.intersection(range)) {
             return true;
         }
     }
     return false;
+}
+
+function validateSemicolonsAndStructures(document, diags, ignoredZones) {
+    const text = document.getText();
+
+    // Regex pour repérer :
+    // 1. Débuts de blocs nommés (class, function, if, while, for) -> PAS DE ; APRES }
+    // 2. Assignations ($v =, ::v =) -> BESOIN DE ; APRES }
+    // 3. Commandes (execute ..., timer.add ...) -> BESOIN DE ; APRES } SI BLOC
+    // 4. Structures ({ key: val }) -> BESOIN DE , ET ;
+
+    // On va parcourir le texte caractère par caractère pour gérer l'imbrication { }
+    // C'est plus fiable que les regex pures pour le multi-lignes.
+
+    const tokenRegex = /(\/\/.*$|#.*$|\/\*[\s\S]*?\*\/|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`[\s\S]*?`|\b(class|function|if|while|for|switch)\b|(\$|::)[\w.]+\s*(:?)=|;|,|\{|\}|\[|\])/gm;
+
+    let match;
+    const stack = []; // Pour suivre l'imbrication : { type: 'block'|'struct'|'array', startPos: number, needsSemi: boolean }
+
+    // 'block' = function/class/if body (ne veut pas de ;)
+    // 'struct' = objet JSON ou assignation var { } (veut des , et un ; final si assignation)
+    // 'cmd' = bloc de commande execute { } (veut un ; final)
+
+    while ((match = tokenRegex.exec(text)) !== null) {
+        const token = match[0];
+        const index = match.index;
+
+        // Ignorer commentaires et chaînes
+        if (token.startsWith('//') || token.startsWith('#') || token.startsWith('/*') || token.startsWith('"') || token.startsWith("'") || token.startsWith('`')) {
+            continue;
+        }
+
+        // 1. Mots-clés définissant un bloc qui NE DOIT PAS finir par ;
+        if (['class', 'function', 'if', 'while', 'for', 'switch'].includes(token)) {
+            stack.push({ type: 'definition_keyword', pos: index });
+        }
+
+        // 2. Assignations (variables) -> Doit finir par ;
+        else if (token.includes('=') && (token.startsWith('$') || token.startsWith('::'))) {
+            stack.push({ type: 'assignment', pos: index });
+        }
+
+        // 3. Accolade ouvrante {
+        else if (token === '{') {
+            let parentType = 'unknown';
+            let needsSemi = false;
+            let isStruct = false; // Pour vérifier les virgules
+
+            if (stack.length > 0) {
+                const last = stack[stack.length - 1];
+                if (last.type === 'definition_keyword') {
+                    parentType = 'definition_block'; // ex: function foo() {
+                    stack.pop(); // On consomme le mot clé
+                } else if (last.type === 'assignment') {
+                    parentType = 'struct_block'; // ex: ::var = {
+                    needsSemi = true;
+                    isStruct = true;
+                    stack.pop(); // On consomme l'assignation
+                } else if (last.type === 'struct_block' || last.type === 'array_block') {
+                    // Imbriqué dans une structure
+                    parentType = 'struct_block';
+                    isStruct = true;
+                } else {
+                    // Par défaut, un bloc isolé (ex: execute run { }) requiert un ;
+                    // Sauf si c'est un bloc purement logique ? En JMC, execute run { } demande un ;
+                    parentType = 'command_block';
+                    needsSemi = true;
+                }
+            } else {
+                // Bloc racine (ex: execute run { ... })
+                parentType = 'command_block';
+                needsSemi = true;
+            }
+
+            stack.push({ type: parentType, startPos: index, needsSemi, isStruct, lastElementEnd: null });
+        }
+
+        // 4. Crochet ouvrant [ (Pour les listes)
+        else if (token === '[') {
+            stack.push({ type: 'array_block', startPos: index, isStruct: true, lastElementEnd: null });
+        }
+
+        // 5. Fermetures } ou ]
+        else if (token === '}' || token === ']') {
+            if (stack.length === 0) continue; // Erreur de syntaxe (trop de }), géré ailleurs ou ignoré
+            const currentBlock = stack.pop();
+
+            // Vérification des virgules manquantes dans les structures multi-lignes
+            if (currentBlock.isStruct && currentBlock.lastElementEnd !== null) {
+                // Si on a eu un élément, qu'on ferme, et qu'il n'y a pas eu de virgule après le dernier élément
+                // Ce n'est pas une erreur en JSON standard (pas de virgule trailing), 
+                // mais si on a : { a:1 \n b:2 }, il faut une virgule entre 1 et b.
+                // Notre logique simplifiée ici ne capture pas tout, on va se fier à la détection de virgule 'au passage'.
+            }
+
+            // Gestion du point-virgule après le bloc
+            const nextCharIndex = tokenRegex.lastIndex; // Position juste après }
+            // On regarde le prochain token significatif (on saute les espaces via regex exec suivant)
+
+            // Astuce : on regarde juste après si on a un ;
+            // Mais attention, la boucle principale va avancer.
+            // On va vérifier "à la volée".
+
+            if (currentBlock.needsSemi) {
+                // On s'attend à un ;
+                // On scanne manuellement après pour voir s'il y a un ;
+                const remaining = text.slice(index + 1);
+                const nextSemi = remaining.search(/\S/); // Premier char non-espace
+
+                if (nextSemi !== -1 && remaining[nextSemi] === ';') {
+                    // OK, il y a un ;
+                } else {
+                    // ERREUR : Manque ;
+                    // Sauf si c'est à l'intérieur d'une autre structure (ex: un objet dans une liste ne prend pas de ; mais une ,)
+                    const parent = stack.length > 0 ? stack[stack.length - 1] : null;
+                    const isInsideStruct = parent && (parent.type === 'struct_block' || parent.type === 'array_block');
+
+                    if (!isInsideStruct) {
+                        const pos = document.positionAt(index + 1);
+                        const range = new vscode.Range(pos, pos.translate(0, 1));
+                        if (!isRangeIgnored(range, ignoredZones)) {
+                            diags.push(new vscode.Diagnostic(range, "Missing semicolon ';' after block/structure.", vscode.DiagnosticSeverity.Error));
+                        }
+                    }
+                }
+            } else if (currentBlock.type === 'definition_block') {
+                // NE VEUT PAS DE ;
+                const remaining = text.slice(index + 1);
+                const nextSemi = remaining.search(/\S/);
+                if (nextSemi !== -1 && remaining[nextSemi] === ';') {
+                    const semiPos = document.positionAt(index + 1 + nextSemi);
+                    const range = new vscode.Range(semiPos, semiPos.translate(0, 1));
+                    if (!isRangeIgnored(range, ignoredZones)) {
+                        diags.push(new vscode.Diagnostic(range, "Unnecessary semicolon ';' after function/class definition.", vscode.DiagnosticSeverity.Error));
+                    }
+                }
+            }
+        }
+
+        // 6. Virgule
+        else if (token === ',') {
+            if (stack.length > 0) {
+                const current = stack[stack.length - 1];
+                if (current.isStruct) {
+                    current.lastElementEnd = index; // On a vu une virgule
+                }
+            }
+        }
+
+        // 7. Point-virgule (Détection redondance)
+        else if (token === ';') {
+            // Vérifier s'il y en a un autre juste après
+            const nextIdx = index + 1;
+            if (text[nextIdx] === ';') {
+                const pos = document.positionAt(nextIdx);
+                const range = new vscode.Range(pos, pos.translate(0, 1));
+                if (!isRangeIgnored(range, ignoredZones)) {
+                    // Vérifier que ce n'est pas une boucle for (;;)
+                    // C'est dur avec cette boucle simple, mais en JMC for(;;) est rare ou géré par for (...)
+                    // On assume redondant.
+                    diags.push(new vscode.Diagnostic(range, "Redundant semicolon.", vscode.DiagnosticSeverity.Error));
+                }
+            }
+        }
+    }
 }
 
 function updateDiagnostics(document) {
@@ -135,13 +270,12 @@ function updateDiagnostics(document) {
         }
     }
 
-
     let fadeRanges = [];
     const fadeHoverMap = new Map();
     let unusedRanges = [];
     const unusedHoverMap = new Map();
 
-    // --- NOUVELLE LOGIQUE : Trouver les blocs @ignore ---
+    // --- LOGIQUE : Trouver les blocs @ignore ---
     const ignoredZones = [];
     const ignoreMarkerRanges = [];
     const ignoreStartTag = '// @ignore(start)';
@@ -154,27 +288,17 @@ function updateDiagnostics(document) {
 
         if (endSearchIndex !== -1) {
             const endPos = document.positionAt(endSearchIndex);
-
-            // La zone à ignorer est entre les deux marqueurs
             const ignoreZone = new vscode.Range(startPos, endPos.translate(0, ignoreEndTag.length));
             ignoredZones.push(ignoreZone);
-
-            // On ajoute les lignes des marqueurs pour les mettre en gras
             ignoreMarkerRanges.push(document.lineAt(startPos.line).range);
             ignoreMarkerRanges.push(document.lineAt(endPos.line).range);
-
             searchIndex = endSearchIndex + ignoreEndTag.length;
         } else {
-            // Bloc non fermé, on arrête la recherche pour éviter les erreurs
             break;
         }
     }
-    // --- FIN DE LA NOUVELLE LOGIQUE ---
 
-
-    // Récupérer tous les fichiers importés (et le fichier courant)
     const importedFiles = getImportedFiles(document);
-
     const globalDefinedFunctions = new Set();
     const globalUsedFunctions = new Set();
 
@@ -189,18 +313,16 @@ function updateDiagnostics(document) {
         usedFuncs.forEach(f => globalUsedFunctions.add(f));
     }
 
-    // Garder la logique de processCodeBlock et autres diag comme avant
+    // --- MODIFICATION IMPORTANTE : Utiliser la variable globale sans 'const' ---
+    definedFunctionsInDoc = getDefinedFunctionsFromText(text.replace(/(\/\/|#).*/g, ''));
+
+    // Analyse principale des blocs de code
     processCodeBlock(text, 0, 0, diags, jmcFunctions);
 
-    // Liste des fonctions définies localement (pour le fichier actuel uniquement)
-    // Combine les fonctions définies localement + globalement (importées)
-    const definedFunctionsInDoc = getDefinedFunctionsFromText(text.replace(/(\/\/|#).*/g, ''));
     const localDefinedNames = definedFunctionsInDoc.map(d => d.split('.').pop());
     const globalDefinedNames = [...globalDefinedFunctions].map(f => f.split('.').pop());
     const allDefinedFunctionNames = new Set([...localDefinedNames, ...globalDefinedNames]);
 
-
-    // Liste des fonctions appelées globalement (dans tous les fichiers importés)
     const simpleUsed = new Set([...globalUsedFunctions].map(f => f.split('.').pop()));
 
     const addDecoratedFunctions = new Set();
@@ -210,7 +332,6 @@ function updateDiagnostics(document) {
         addDecoratedFunctions.add(addMatch[1]);
     }
 
-    // Vérifier les appels de fonctions non définies dans le fichier actuel (fadeRanges)
     const usedFunctions = getAllCallIdentifiers(text.replace(/(\/\/|#).*/g, ''));
 
     usedFunctions.forEach(fullCallName => {
@@ -223,7 +344,6 @@ function updateDiagnostics(document) {
         ) {
             return;
         }
-
 
         const callRegex = new RegExp(`\\b${fullCallName.replace(/\./g, '\\.')}\\s*\\(`, 'g');
         let match;
@@ -240,7 +360,6 @@ function updateDiagnostics(document) {
         }
     });
 
-    // Vérifier les fonctions définies mais non utilisées (unusedRanges) **avec la vue globale**
     allDefinedFunctionNames.forEach(simpleFnName => {
         if (addDecoratedFunctions.has(simpleFnName)) return;
 
@@ -259,27 +378,77 @@ function updateDiagnostics(document) {
         }
     });
 
+    validateSemicolonsAndStructures(document, diags, ignoredZones);
 
-    // --- NOUVELLE LOGIQUE : Filtrer les résultats qui sont dans une zone ignorée ---
+    // --- DÉBUT NOUVELLE LOGIQUE STORAGE (Déplacé ICI avant le filtrage final) ---
+    const storageOpRegex = /(:[-+\*\/%]?=)/g;
+    // Capture "namespace::var" ou "::var"
+    const storageVarRegex = /([a-zA-Z0-9_.]*::[a-zA-Z0-9_.]+)/g;
+
+    for (let i = 0; i < document.lineCount; i++) {
+        const line = document.lineAt(i);
+        const lineText = line.text;
+
+        const commentIndex = Math.min(
+            lineText.indexOf('//') === -1 ? Infinity : lineText.indexOf('//'),
+            lineText.indexOf('#') === -1 ? Infinity : lineText.indexOf('#')
+        );
+        const codeText = commentIndex !== Infinity ? lineText.substring(0, commentIndex) : lineText;
+
+        let opMatch;
+        storageOpRegex.lastIndex = 0;
+
+        while ((opMatch = storageOpRegex.exec(codeText)) !== null) {
+            const opIndex = opMatch.index;
+            const opLength = opMatch[0].length;
+            const rhsStart = opIndex + opLength;
+            const rhsText = codeText.substring(rhsStart);
+
+            let varMatch;
+            storageVarRegex.lastIndex = 0;
+
+            while ((varMatch = storageVarRegex.exec(rhsText)) !== null) {
+                const varName = varMatch[0];
+                const varIndexInRhs = varMatch.index;
+                const absoluteVarIndex = rhsStart + varIndexInRhs;
+
+                const textBefore = codeText.substring(0, absoluteVarIndex).trimEnd();
+                const textAfter = codeText.substring(absoluteVarIndex + varName.length).trimStart();
+
+                const hasOpenBrace = textBefore.endsWith('{');
+                const hasCloseBrace = textAfter.startsWith('}');
+
+                if (!hasOpenBrace || !hasCloseBrace) {
+                    const startPos = new vscode.Position(i, absoluteVarIndex);
+                    const endPos = new vscode.Position(i, absoluteVarIndex + varName.length);
+                    const range = new vscode.Range(startPos, endPos);
+
+                    if (!isRangeIgnored(range, ignoredZones)) {
+                        diags.push(new vscode.Diagnostic(
+                            range,
+                            `Storage variable '${varName}' must be wrapped in curly braces {} when using the '${opMatch[0]}' operator.\nCorrect usage: {${varName}}`,
+                            vscode.DiagnosticSeverity.Error
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    // --- FIN NOUVELLE LOGIQUE STORAGE ---
+    processCodeBlock(text, 0, 0, diags, Object.keys(moduleSnippets));
+    // Filtrer les résultats qui sont dans une zone ignorée
     const finalDiags = diags.filter(d => !isRangeIgnored(d.range, ignoredZones));
     const finalFadeRanges = fadeRanges.filter(r => !isRangeIgnored(r, ignoredZones));
     const finalUnusedRanges = unusedRanges.filter(r => !isRangeIgnored(r, ignoredZones));
-    // --- FIN DE LA NOUVELLE LOGIQUE ---
-
 
     diagnostics.set(document.uri, finalDiags);
     const editor = vscode.window.activeTextEditor;
     if (editor && editor.document === document) {
-
         editor.setDecorations(decoratorDecoration, decoratorRanges);
-
         editor.setDecorations(fadeDecoration, finalFadeRanges);
         editor.setDecorations(unusedDecoration, finalUnusedRanges);
-        editor.setDecorations(ignoreDecoration, ignoreMarkerRanges); // Appliquer la décoration en gras pour les marqueurs
-
-        // --- NOUVEAU : Appliquer la décoration en italique pour toute la zone ignorée ---
+        editor.setDecorations(ignoreDecoration, ignoreMarkerRanges);
         editor.setDecorations(ignoreContentDecoration, ignoredZones);
-        // --- FIN DU NOUVEAU ---
     }
 }
 
@@ -302,7 +471,6 @@ function processCodeBlock(blockText, baseLine, baseOffset, diags, jmcFunctions) 
     let searchText = blockText;
     let searchStartIndex = 0;
 
-    // Pass 1: Identifier TOUS les blocs récursifs, les traiter, et les marquer pour nettoyage.
     while (searchStartIndex < searchText.length) {
         const openBraceIndex = searchText.indexOf('{', searchStartIndex);
         if (openBraceIndex === -1) break;
@@ -335,7 +503,6 @@ function processCodeBlock(blockText, baseLine, baseOffset, diags, jmcFunctions) 
         searchStartIndex = openBraceIndex + 1;
     }
 
-    // Pass 2: Créer une version nettoyée du texte du bloc courant.
     let sanitizedBlockText = blockText.split('');
     for (const block of subBlocks) {
         for (let i = block.start + 1; i < block.end - 1; i++) {
@@ -346,7 +513,6 @@ function processCodeBlock(blockText, baseLine, baseOffset, diags, jmcFunctions) 
     }
     sanitizedBlockText = sanitizedBlockText.join('');
 
-    // Pass 3: Analyser le bloc nettoyé pour les erreurs locales.
     const lines = sanitizedBlockText.split('\n');
     let parenDepth = 0;
 
@@ -357,15 +523,13 @@ function processCodeBlock(blockText, baseLine, baseOffset, diags, jmcFunctions) 
 
         const commentIndex = Math.min(...['//', '#'].map(sym => { const idx = lineText.indexOf(sym); return idx === -1 ? Infinity : idx; }));
         const lineContent = (commentIndex === Infinity ? lineText : lineText.substring(0, commentIndex));
-        // Couper la ligne à '::' pour ne pas analyser la partie avant '::'
+
         if (!lineContent.trim()) continue;
         let relevantLine = lineContent;
         const doubleColonIndex = lineContent.indexOf('::');
         if (doubleColonIndex !== -1) {
             relevantLine = lineContent.substring(doubleColonIndex);
         }
-
-
 
         const initialParenDepth = parenDepth;
         for (const char of lineContent) {
@@ -400,18 +564,14 @@ function processCodeBlock(blockText, baseLine, baseOffset, diags, jmcFunctions) 
                     trimmedSegment.endsWith(',') ||
                     /^\s*(function|if|for|while|class)\b/.test(trimmedSegment) ||
                     parenDepth > 0;
-                // --- Ignorer les lignes qui sont uniquement un décorateur comme @add(__tick__)
+
                 const isDecoratorLine = /^\s*@\w+(\([^)]*\))?\s*$/.test(trimmedSegment);
                 if (isDecoratorLine) {
                     segmentOffset += segment.length;
                     continue;
                 }
 
-                if (!isExempt) {
-                    const errorPos = currentOffset + lineText.indexOf(segment, segmentOffset) + segment.trimEnd().length;
-                    const range = new vscode.Range(currentLineNumber, errorPos, currentLineNumber, errorPos + 1);
-                    diags.push(new vscode.Diagnostic(range, "Missing semicolon ';'", vscode.DiagnosticSeverity.Warning));
-                }
+
             }
             segmentOffset += segment.length;
         }

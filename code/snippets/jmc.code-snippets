@@ -2,295 +2,596 @@
     "print": {
         "prefix": "print",
         "body": [
-            "print(${1:value});"
+            "print(${1:value: Scoreboard});"
         ],
         "description": "Print a variable for all players in chat."
     },
     "printf": {
         "prefix": "printf",
         "body": [
-            "printf(${1:text});"
+            "printf(${1:text: FormattedString});"
         ],
-        "description": "Print a text for all players in chat. Works the same as Text.tellraw(@a, text);"
+        "description": "Print a text for all players in chat."
     },
     "Player.onEvent": {
         "prefix": "Player.onEvent",
         "body": [
-            "Player.onEvent(${1:criteria}, ${2:function});"
+            "Player.onEvent(${1:criteria: Criteria}, ${2:function: Function});"
         ],
         "description": "Run commands on positive change of scoreboard and reset the score."
     },
     "Player.firstJoin": {
         "prefix": "Player.firstJoin",
         "body": [
-            "Player.firstJoin(${1:function});"
+            "Player.firstJoin(${1:function: Function});"
         ],
-        "description": "Run commands as player and at player when joining the World for the first time."
+        "description": "Run commands as player when joining the World for the first time."
     },
     "Player.rejoin": {
         "prefix": "Player.rejoin",
         "body": [
-            "Player.rejoin(${1:function});"
+            "Player.rejoin(${1:function: Function});"
         ],
-        "description": "Run commands as player and at player when a player leaves and rejoins a world. Will not run on first join."
+        "description": "Run commands as player when a player leave a world then join back."
     },
     "Player.join": {
         "prefix": "Player.join",
         "body": [
-            "Player.join(${1:function});"
+            "Player.join(${1:function: Function});"
         ],
-        "description": "Run commands as player and at player every time a player joins the world."
+        "description": "Run commands as player every time a player joins the world."
     },
     "Player.die": {
         "prefix": "Player.die",
         "body": [
-            "Player.die(${1:onDeath}, ${2:onRespawn});"
+            "Player.die(${1:onDeath: Function = ()=>{}}, ${2:onRespawn: Function = ()=>{}});"
         ],
-        "description": "Run onDeath function when a player dies, and onRespawn function when they respawn."
+        "description": "Run onDeath when player die, and onRespawn when player respawn."
+    },
+    "Item.create": {
+        "prefix": "Item.create",
+        "body": [
+            "Item.create(${1:itemId: Keyword}, ${2:itemType: Item}, ${3:displayName: FormattedString = \"\"}, ${4:lore: List<FormattedString> = []}, ${5:nbt: JSObject = {}}, ${6:onClick: Function = ()=>{}});"
+        ],
+        "description": "Create a custom item and save it for further use."
+    },
+    "Item.createSign": {
+        "prefix": "Item.createSign",
+        "body": [
+            "Item.createSign(${1:itemId: Keyword}, ${2:variant: Keyword}, ${3:displayName: FormattedString = \"\"}, ${4:lore: List<FormattedString> = []}, ${5:texts: List<FormattedString> = []}, ${6:nbt: JSObject = {}}, ${7:onClick: Function = ()=>{}});"
+        ],
+        "description": "Create a custom sign and save it for further use."
+    },
+    "Item.createSpawnEgg": {
+        "prefix": "Item.createSpawnEgg",
+        "body": [
+            "Item.createSpawnEgg(${1:itemId: Keyword}, ${2:mobType: Keyword}, ${3:displayName: FormattedString = \"\"}, ${4:onPlace: Function = ()=>{}}, ${5:lore: List<FormattedString> = []}, ${6:nbt: JSObject = {}});"
+        ],
+        "description": "Create a custom spawn egg and save it for further use."
+    },
+    "Item.give": {
+        "prefix": "Item.give",
+        "body": [
+            "Item.give(${1:itemId: Keyword}, ${2:selector: TargetSelector = @s}, ${3:amount: integer = 1});"
+        ],
+        "description": "Give item created from Item.create to a player."
+    },
+    "Item.clear": {
+        "prefix": "Item.clear",
+        "body": [
+            "Item.clear(${1:itemId: Keyword}, ${2:selector: TargetSelector = @s}, ${3:amount: integer = -1});"
+        ],
+        "description": "Clear item created from Item.create from a player."
+    },
+    "Item.summon": {
+        "prefix": "Item.summon",
+        "body": [
+            "Item.summon(${1:itemId: Keyword}, ${2:pos: string}, ${3:count: integer = 1}, ${4:nbt: JSObject = {}});"
+        ],
+        "description": "Spawn item entity from Item.create."
+    },
+    "Item.replaceBlock": {
+        "prefix": "Item.replaceBlock",
+        "body": [
+            "Item.replaceBlock(${1:itemId: Keyword}, ${2:pos: string}, ${3:slot: string}, ${4:count: integer = 1});"
+        ],
+        "description": "Use /item replace block with item from Item.create."
+    },
+    "Item.replaceEntity": {
+        "prefix": "Item.replaceEntity",
+        "body": [
+            "Item.replaceEntity(${1:itemId: Keyword}, ${2:selector: TargetSelector}, ${3:slot: string}, ${4:count: integer = 1});"
+        ],
+        "description": "Use /item replace entity with item from Item.create."
     },
     "Text.tellraw": {
         "prefix": "Text.tellraw",
         "body": [
-            "Text.tellraw(${1:selector}, ${2:message});"
+            "Text.tellraw(${1:selector: TargetSelector}, ${2:message: FormattedString});"
         ],
         "description": "Use formatted text on tellraw."
     },
     "Text.title": {
         "prefix": "Text.title",
         "body": [
-            "Text.title(${1:selector}, ${2:message});"
+            "Text.title(${1:selector: TargetSelector}, ${2:message: FormattedString});"
         ],
         "description": "Use formatted text on title."
     },
     "Text.subtitle": {
         "prefix": "Text.subtitle",
         "body": [
-            "Text.subtitle(${1:selector}, ${2:message});"
+            "Text.subtitle(${1:selector: TargetSelector}, ${2:message: FormattedString});"
         ],
         "description": "Use formatted text on subtitle."
     },
     "Text.actionbar": {
         "prefix": "Text.actionbar",
         "body": [
-            "Text.actionbar(${1:selector}, ${2:message});"
+            "Text.actionbar(${1:selector: TargetSelector}, ${2:message: FormattedString});"
         ],
         "description": "Use formatted text on actionbar."
     },
     "Math.sqrt": {
         "prefix": "Math.sqrt",
         "body": [
-            "Math.sqrt(${1:n});"
+            "Math.sqrt(${1:n: Scoreboard})"
         ],
-        "description": "Calculates the floored square root of an integer scoreboard using the Newton-Raphson method."
+        "description": "Calculate square root of any integer (floored)."
     },
     "Math.random": {
         "prefix": "Math.random",
         "body": [
-            "Math.random(${1:score}, ${2:min}, ${3:max});"
+            "Math.random(${1:min: ScoreboardInteger = 1}, ${2:max: ScoreboardInteger = 2147483647})"
         ],
-        "description": "Simplify integer randomization process using Linear congruential generator."
+        "description": "Simplify integer randomization process."
     },
     "Timer.add": {
         "prefix": "Timer.add",
         "body": [
-            "Timer.add(${1:objective}, ${2|'runOnce','runTick','none'|}, ${3:selector}, ${4:function});"
+            "Timer.add(${1:objective: Objective}, ${2:mode: Keyword}, ${3:selector: TargetSelector}, ${4:function: Function = ()=>{}});"
         ],
-        "description": "Create a scoreboard timer with 3 run modes: runOnce, runTick, none."
+        "description": "Create a scoreboard timer with 3 run modes."
     },
     "Timer.set": {
         "prefix": "Timer.set",
         "body": [
-            "Timer.set(${1:objective}, ${2:selector}, ${3:tick});"
+            "Timer.set(${1:objective: Objective}, ${2:selector: TargetSelector}, ${3:tick: ScoreboardInteger});"
         ],
         "description": "Set entity's score to start the timer."
     },
     "Timer.isOver": {
         "prefix": "Timer.isOver",
         "body": [
-            "Timer.isOver(${1:objective}, ${2:@s});"
+            "Timer.isOver(${1:objective: Objective}, ${2:selector: TargetSelector = @s})"
         ],
-        "description": "Returns true if the timer for the selector is over."
+        "description": "Whether the timer of the selector is over or not."
     },
     "Recipe.table": {
         "prefix": "Recipe.table",
         "body": [
-            "Recipe.table(${1:recipe}, baseItem: ${2:knowledge_book}, onCraft: ${3:()=>{}});"
+            "Recipe.table(${1:recipe: JSON}, ${2:baseItem: Item = knowledge_book}, ${3:onCraft: Function = ()=>{}});"
         ],
-        "description": "Create a custom recipe for a Crafting Table, allowing NBT in the result and running a function on craft."
+        "description": "Create a custom recipe for Crafting Table."
     },
     "Hardcode.repeat": {
         "prefix": "Hardcode.repeat",
         "body": [
-            "Hardcode.repeat(${1:indexString}, ${2:function}, ${3:start}, ${4:stop}, ${5:step});"
+            "Hardcode.repeat(${1:indexString: string}, ${2:function: ArrowFunction}, ${3:start: integer}, ${4:stop: integer}, ${5:step: integer = 1});"
         ],
-        "description": "Repeat a function, replacing indexString with a number in a given range."
+        "description": "Loop through numbers by hardcoding commands."
     },
     "Hardcode.repeatList": {
         "prefix": "Hardcode.repeatList",
         "body": [
-            "Hardcode.repeatList(${1:indexString}, ${2:function}, ${3:strings});"
+            "Hardcode.repeatList(${1:indexString: string}, ${2:function: ArrowFunction}, ${3:strings: List<string>});"
         ],
-        "description": "Repeat a function, iterating over a list and replacing indexString with list items."
+        "description": "Loop through a list of strings by hardcoding commands."
     },
     "Hardcode.repeatLists": {
         "prefix": "Hardcode.repeatLists",
         "body": [
-            "Hardcode.repeatLists(${1:indexStrings}, ${2:function}, ${3:stringLists});"
+            "Hardcode.repeatLists(${1:indexStrings: List<string>}, ${2:function: ArrowFunction}, ${3:stringLists: List<List<string>>});"
         ],
-        "description": "Repeat a function, iterating over multiple lists simultaneously."
+        "description": "Loop through multiple lists by hardcoding commands."
     },
     "Hardcode.switch": {
         "prefix": "Hardcode.switch",
         "body": [
-            "Hardcode.switch(${1:switch}, ${2:indexString}, ${3:function}, ${4:count}, ${5:step});"
+            "Hardcode.switch(${1:switch: Scoreboard}, ${2:indexString: string}, ${3:function: ArrowFunction}, ${4:count: integer}, ${5:begin_at: integer = 1});"
         ],
-        "description": "Similar to Hardcode.repeat() but for switch statements."
+        "description": "Generate a switch statement structure hardcoded."
     },
     "Trigger.setup": {
         "prefix": "Trigger.setup",
         "body": [
-            "Trigger.setup(${1:objective}, {${2:1: ()=>{}}});"
+            "Trigger.setup(${1:objective: Keyword}, ${2:triggers: JSObject<integer, Function>});"
         ],
-        "description": "Setup a trigger system for custom commands. Players can use /trigger <objective> set <id>."
+        "description": "Setup a trigger system for custom command."
     },
     "Trigger.add": {
         "prefix": "Trigger.add",
         "body": [
-            "Trigger.add(${1:objective}, ${2:function});"
+            "Trigger.add(${1:objective: Keyword}, ${2:function: Function});"
         ],
-        "description": "A shortcut to add a single trigger command."
+        "description": "Add a trigger command. (Shortcut for Trigger.setup)"
     },
     "Predicate.locations": {
         "prefix": "Predicate.locations",
         "body": [
-            "Predicate.locations(${1:name}, ${2:predicate}, ${3:xMin}, ${4:xMax}, ${5:yMin}, ${6:yMax}, ${7:zMin}, ${8:zMax});"
+            "Predicate.locations(${1:name: string}, ${2:predicate: JSON}, ${3:xMin: integer}, ${4:xMax: integer}, ${5:yMin: integer}, ${6:yMax: integer}, ${7:zMin: integer}, ${8:zMax: integer});"
         ],
-        "description": "Automate the creation of massive location-checking predicates."
+        "description": "Automation for making massive location check."
+    },
+    "RightClick.setup": {
+        "prefix": "RightClick.setup",
+        "body": [
+            "RightClick.setup(${1:idName: Keyword}, ${2:functionMap: JSObject<integer, Function>});"
+        ],
+        "description": "Setup basic carrot_on_a_stick right click detection."
     },
     "Particle.circle": {
         "prefix": "Particle.circle",
         "body": [
-            "Particle.circle(${1:particle}, ${2:radius}, ${3:spread});"
+            "Particle.circle(${1:particle: string}, ${2:radius: float}, ${3:spread: integer}, ${4:speed: integer = 1}, ${5:count: integer = 1}, ${6:mode: Keyword = normal});"
         ],
         "description": "Make circle shaped particles."
     },
     "Particle.spiral": {
         "prefix": "Particle.spiral",
         "body": [
-            "Particle.spiral(${1:particle}, ${2:radius}, ${3:height}, ${4:spread});"
+            "Particle.spiral(${1:particle: string}, ${2:radius: float}, ${3:height: float}, ${4:spread: integer}, ${5:speed: integer = 1}, ${6:count: integer = 1}, ${7:mode: Keyword = normal});"
         ],
         "description": "Make spiral shaped particles."
     },
     "Particle.helix": {
         "prefix": "Particle.helix",
         "body": [
-            "Particle.helix(${1:particle}, ${2:radius}, ${3:height}, ${4:spread});"
+            "Particle.helix(${1:particle: string}, ${2:radius: float}, ${3:height: float}, ${4:spread: integer}, ${5:speed: integer = 1}, ${6:count: integer = 1}, ${7:mode: Keyword = normal});"
         ],
-        "description": "Alias for Particle.spiral(). Makes spiral shaped particles."
+        "description": "Make spiral shaped particles. (Alias to Particle.spiral)"
     },
     "Particle.cylinder": {
         "prefix": "Particle.cylinder",
         "body": [
-            "Particle.cylinder(${1:particle}, ${2:radius}, ${3:height}, ${4:spreadXZ}, ${5:spreadY});"
+            "Particle.cylinder(${1:particle: string}, ${2:radius: float}, ${3:height: float}, ${4:spreadXZ: integer}, ${5:spreadY: integer}, ${6:speed: integer = 1}, ${7:count: integer = 1}, ${8:mode: Keyword = normal});"
         ],
         "description": "Make cylinder shaped particles."
     },
     "Particle.line": {
         "prefix": "Particle.line",
         "body": [
-            "Particle.line(${1:particle}, ${2:distance}, ${3:spread});"
+            "Particle.line(${1:particle: string}, ${2:distance: float}, ${3:spread: integer}, ${4:speed: integer = 1}, ${5:count: integer = 1}, ${6:mode: Keyword = normal});"
         ],
         "description": "Make line shaped particles."
     },
     "Particle.square": {
         "prefix": "Particle.square",
         "body": [
-            "Particle.square(${1:particle}, ${2:length}, ${3:spread}, ${4:align});"
+            "Particle.square(${1:particle: string}, ${2:length: float}, ${3:spread: integer}, ${4:align: Keyword = corner}, ${5:speed: integer = 1}, ${6:count: integer = 1}, ${7:mode: Keyword = normal});"
         ],
-        "description": "Make square shaped particles. Align can be 'corner' or 'center'."
+        "description": "Make square shaped particles."
     },
     "Particle.cube": {
         "prefix": "Particle.cube",
         "body": [
-            "Particle.cube(${1:particle}, ${2:length}, ${3:spread}, ${4:align});"
+            "Particle.cube(${1:particle: string}, ${2:length: float}, ${3:spread: integer}, ${4:align: Keyword = corner}, ${5:speed: integer = 1}, ${6:count: integer = 1}, ${7:mode: Keyword = normal});"
         ],
-        "description": "Make cube shaped particles. Align can be 'corner' or 'center'."
+        "description": "Make cube shaped particles."
     },
     "Particle.sphere": {
         "prefix": "Particle.sphere",
         "body": [
-            "Particle.sphere(${1:particle}, ${2:radius}, ${3:spread});"
+            "Particle.sphere(${1:particle: string}, ${2:radius: float}, ${3:spread: integer}, ${4:speed: integer = 1}, ${5:count: integer = 1}, ${6:mode: Keyword = normal});"
         ],
         "description": "Make sphere shaped particles."
     },
     "Raycast.simple": {
         "prefix": "Raycast.simple",
         "body": [
-            "Raycast.simple(${1:onHit}, onStep:${2:()=>{}}, interval:${3:0.1});"
+            "Raycast.simple(${1:onHit: Function}, ${2:onStep: Function = ()=>{}}, ${3:onBeforeStep: Function = ()=>{}}, ${4:interval: float = 0.1}, ${5:maxIter: integer = 1000}, ${6:boxSize: float = 0.1}, ${7:target: TargetSelector = @e}, ${8:startAtEye: boolean = true}, ${9:stopAtEntity: boolean = true}, ${10:stopAtBlock: boolean = true}, ${11:runAtEnd: boolean = false}, ${12:casterTag: Keyword = __self__}, ${13:removeCasterTag: boolean = true}, ${14:modifyExecuteBeforeStep: string = \"\"}, ${15:modifyExecuteAfterStep: string = \"\"}, ${16:overideString: string = \"\"}, ${17:overideRecursion: ArrowFunction = ()=>{}});"
         ],
-        "description": "Cast a simple raycast with options for collision detection and callbacks."
+        "description": "Cast simple raycast."
     },
     "JMC.put": {
         "prefix": "JMC.put",
         "body": [
-            "JMC.put(${1:command});"
+            "JMC.put(${1:command: string});"
         ],
-        "description": "Ignore any parsing and output the command directly. Used to bypass compiler failures."
+        "description": "Ignore any parsing and output the command directly."
     },
     "JMC.python": {
         "prefix": "JMC.python",
         "body": [
-            "JMC.python(${1:pythonCode}, env: ${2:env}, jmc: ${3:false});"
+            "JMC.python(${1:pythonCode: string}, ${2:env: string = \"\"}, ${3:jmc: boolean = false});"
         ],
-        "description": "Allows you to use python code directly inside JMC. Use emit() in Python to return commands."
+        "description": "Allow you to use python code directly inside jmc."
     },
     "JMC.pythonFile": {
         "prefix": "JMC.pythonFile",
         "body": [
-            "JMC.pythonFile(${1:file}, env: ${2:env}, jmc: ${3:false});"
+            "JMC.pythonFile(${1:pythonFile: string}, ${2:env: string = \"\"}, ${3:jmc: boolean = false});"
         ],
-        "description": "Allows you to use a Python file directly inside JMC. The file path is relative to the .jmc file."
+        "description": "Allow you to use python code directly from a file."
     },
     "String.isEqual": {
         "prefix": "String.isEqual",
         "body": [
-            "String.isEqual(${1:source}, ${2:path}, ${3:string});"
+            "String.isEqual(${1:source: string}, ${2:path: Keyword}, ${3:string: string})"
         ],
-        "description": "Checks if the value inside an NBT path is equal to a given string."
+        "description": "Whether the value inside NBT path is equal to the string."
     },
     "Object.isEqual": {
         "prefix": "Object.isEqual",
         "body": [
-            "Object.isEqual(${1:source1}, ${2:path1}, ${3:source2}, ${4:path2});"
+            "Object.isEqual(${1:source1: string}, ${2:path1: Keyword}, ${3:source2: string}, ${4:path2: Keyword})"
         ],
-        "description": "Checks if the value inside an NBT path is equal to the value inside another NBT path."
+        "description": "Whether the value inside NBT path is equal to the value inside another NBT path."
+    },
+    "GUI.template": {
+        "prefix": "GUI.template",
+        "body": [
+            "GUI.template(${1:name: Keyword}, ${2:template: List<string>}, ${3:mode: Keyword});"
+        ],
+        "description": "Create template for GUI."
+    },
+    "GUI.register": {
+        "prefix": "GUI.register",
+        "body": [
+            "GUI.register(${1:name: Keyword}, ${2:id: string}, ${3:item: Item}, ${4:displayName: FormattedString = \"\"}, ${5:lore: List<FormattedString> = []}, ${6:nbt: JSObject = {}}, ${7:onClick: Function = ()=>{}}, ${8:onClickAsGUI: Function = ()=>{}});"
+        ],
+        "description": "Map an item to an id(character) in template."
+    },
+    "GUI.registers": {
+        "prefix": "GUI.registers",
+        "body": [
+            "GUI.registers(${1:name: Keyword}, ${2:id: string}, ${3:items: List<Keyword>}, ${4:variable: Scoreboard}, ${5:onClick: Function = ()=>{}}, ${6:onClickAsGUI: Function = ()=>{}});"
+        ],
+        "description": "Map multiple items to an id in template depending on variable."
+    },
+    "GUI.create": {
+        "prefix": "GUI.create",
+        "body": [
+            "GUI.create(${1:name: Keyword});"
+        ],
+        "description": "Create a GUI that's been configured."
+    },
+    "GUI.run": {
+        "prefix": "GUI.run",
+        "body": [
+            "GUI.run(${1:name: Keyword});"
+        ],
+        "description": "Run a GUI, on entity/block. Must be run every tick."
+    },
+    "Advancement.grant": {
+        "prefix": "Advancement.grant",
+        "body": [
+            "Advancement.grant(${1:target: TargetSelector}, ${2:type: Keyword}, ${3:advancement: Keyword}, ${4:namespace: Keyword = \"\"});"
+        ],
+        "description": "Grant advancement, an alternative to vanilla syntax."
+    },
+    "Advancement.revoke": {
+        "prefix": "Advancement.revoke",
+        "body": [
+            "Advancement.revoke(${1:target: TargetSelector}, ${2:type: Keyword}, ${3:advancement: Keyword}, ${4:namespace: Keyword = \"\"});"
+        ],
+        "description": "Revoke advancement, an alternative to vanilla syntax."
     },
     "Scoreboard.add": {
         "prefix": "Scoreboard.add",
         "body": [
-            "Scoreboard.add(${1:objective}, ${2:criteria}, ${3:displayName});"
+            "Scoreboard.add(${1:objective: Keyword}, ${2:criteria: Criteria = dummy}, ${3:displayName: FormattedString = \"\"});"
         ],
-        "description": "Add a scoreboard objective, an alternative to vanilla syntax."
+        "description": "Add scoreboard objective."
     },
     "Bossbar.add": {
         "prefix": "Bossbar.add",
         "body": [
-            "Bossbar.add(${1:id}, ${2:displayName});"
+            "Bossbar.add(${1:team: Keyword}, ${2:displayName: FormattedString = \"\"});"
         ],
-        "description": "Add a bossbar, an alternative to vanilla syntax."
+        "description": "Add bossbar."
     },
     "Bossbar.setName": {
         "prefix": "Bossbar.setName",
         "body": [
-            "Bossbar.setName(${1:id}, ${2:displayName});"
+            "Bossbar.setName(${1:team: Keyword}, ${2:displayName: FormattedString = \"\"});"
         ],
-        "description": "Change the name of an existing bossbar, an alternative to vanilla syntax."
+        "description": "Change the name of existing bossbar."
+    },
+    "Team.add": {
+        "prefix": "Team.add",
+        "body": [
+            "Team.add(${1:id: Keyword}, ${2:name: FormattedString = \"\"}, ${3:properties: JSObject<Keyword, Keyword> = {}});"
+        ],
+        "description": "Add team with optional properties."
+    },
+    "Team.prefix": {
+        "prefix": "Team.prefix",
+        "body": [
+            "Team.prefix(${1:team: Keyword}, ${2:prefix: FormattedString});"
+        ],
+        "description": "Modify team's prefix."
+    },
+    "Team.suffix": {
+        "prefix": "Team.suffix",
+        "body": [
+            "Team.suffix(${1:team: Keyword}, ${2:suffix: FormattedString});"
+        ],
+        "description": "Modify team's suffix."
+    },
+    "Entity.launch": {
+        "prefix": "Entity.launch",
+        "body": [
+            "Entity.launch(${1:power: float = 1});"
+        ],
+        "description": "Launch the entity running the command forward."
     },
     "Array.forEach": {
         "prefix": "Array.forEach",
         "body": [
-            "Array.forEach(${1:target}, ${2:path}, ${3:function});"
+            "Array.forEach(${1:target: string}, ${2:path: string}, ${3:function: Function});"
         ],
-        "description": "Iterate over an NBT Array. Access elements inside the function via the path ending in [0]."
+        "description": "Iterate over an NBT Array."
+    },
+    "TextProp.clickCommand": {
+        "prefix": "TextProp.clickCommand",
+        "body": [
+            "TextProp.clickCommand(${1:propertyName: string}, ${2:function: ArrowFunction}, ${3:local: boolean = false});"
+        ],
+        "description": "Create custom property for FormattedString with run_command."
+    },
+    "TextProps.clickCommand": {
+        "prefix": "TextProps.clickCommand",
+        "body": [
+            "TextProps.clickCommand(${1:propertyName: string}, ${2:indexString: string}, ${3:function: ArrowFunction}, ${4:local: boolean = false});"
+        ],
+        "description": "Create custom property (argument-based) for FormattedString with run_command."
+    },
+    "TextProp.suggestCommand": {
+        "prefix": "TextProp.suggestCommand",
+        "body": [
+            "TextProp.suggestCommand(${1:propertyName: string}, ${2:function: ArrowFunction}, ${3:local: boolean = false});"
+        ],
+        "description": "Create custom property for FormattedString with suggest_command."
+    },
+    "TextProps.suggestCommand": {
+        "prefix": "TextProps.suggestCommand",
+        "body": [
+            "TextProps.suggestCommand(${1:propertyName: string}, ${2:indexString: string}, ${3:function: ArrowFunction}, ${4:local: boolean = false});"
+        ],
+        "description": "Create custom property (argument-based) for FormattedString with suggest_command."
+    },
+    "TextProp.clickURL": {
+        "prefix": "TextProp.clickURL",
+        "body": [
+            "TextProp.clickURL(${1:propertyName: string}, ${2:url: string}, ${3:local: boolean = false});"
+        ],
+        "description": "Create clickable web link inside FormattedString."
+    },
+    "TextProps.clickURL": {
+        "prefix": "TextProps.clickURL",
+        "body": [
+            "TextProps.clickURL(${1:propertyName: string}, ${2:indexString: string}, ${3:url: string}, ${4:local: boolean = false});"
+        ],
+        "description": "Create clickable web link (argument-based) inside FormattedString."
+    },
+    "TextProp.clickPage": {
+        "prefix": "TextProp.clickPage",
+        "body": [
+            "TextProp.clickPage(${1:propertyName: string}, ${2:page: integer}, ${3:local: boolean = false});"
+        ],
+        "description": "Change page of book when FormattedString text is clicked."
+    },
+    "TextProps.clickPage": {
+        "prefix": "TextProps.clickPage",
+        "body": [
+            "TextProps.clickPage(${1:propertyName: string}, ${2:local: boolean = false});"
+        ],
+        "description": "Change page of book (argument-based) when FormattedString text is clicked."
+    },
+    "TextProp.clipboard": {
+        "prefix": "TextProp.clipboard",
+        "body": [
+            "TextProp.clipboard(${1:propertyName: string}, ${2:text: string}, ${3:local: boolean = false});"
+        ],
+        "description": "Make copiable text inside FormattedString."
+    },
+    "TextProps.clipboard": {
+        "prefix": "TextProps.clipboard",
+        "body": [
+            "TextProps.clipboard(${1:propertyName: string}, ${2:indexString: string}, ${3:text: string}, ${4:local: boolean = false});"
+        ],
+        "description": "Make copiable text (argument-based) inside FormattedString."
+    },
+    "TextProp.hoverText": {
+        "prefix": "TextProp.hoverText",
+        "body": [
+            "TextProp.hoverText(${1:propertyName: string}, ${2:text: FormattedString}, ${3:local: boolean = false});"
+        ],
+        "description": "Create custom hover property for FormattedString."
+    },
+    "TextProps.hoverText": {
+        "prefix": "TextProps.hoverText",
+        "body": [
+            "TextProps.hoverText(${1:propertyName: string}, ${2:indexString: string}, ${3:text: FormattedString}, ${4:local: boolean = false});"
+        ],
+        "description": "Create custom hover property (argument-based) for FormattedString."
+    },
+    "TextProp.hoverItem": {
+        "prefix": "TextProp.hoverItem",
+        "body": [
+            "TextProp.hoverItem(${1:propertyName: string}, ${2:item: JSON}, ${3:local: boolean = false});"
+        ],
+        "description": "Displays an item description/tooltip on hover."
+    },
+    "TextProps.hoverItem": {
+        "prefix": "TextProps.hoverItem",
+        "body": [
+            "TextProps.hoverItem(${1:propertyName: string}, ${2:indexString: string}, ${3:item: JSON}, ${4:local: boolean = false});"
+        ],
+        "description": "Displays an item description/tooltip (argument-based) on hover."
+    },
+    "TextProp.hoverEntity": {
+        "prefix": "TextProp.hoverEntity",
+        "body": [
+            "TextProp.hoverEntity(${1:propertyName: string}, ${2:entity: JSON}, ${3:local: boolean = false});"
+        ],
+        "description": "Displays an entity's name and UUID on hover."
+    },
+    "TextProps.hoverEntity": {
+        "prefix": "TextProps.hoverEntity",
+        "body": [
+            "TextProps.hoverEntity(${1:propertyName: string}, ${2:indexString: string}, ${3:entity: JSON}, ${4:local: boolean = false});"
+        ],
+        "description": "Displays an entity's name and UUID (argument-based) on hover."
+    },
+    "TextProp.font": {
+        "prefix": "TextProp.font",
+        "body": [
+            "TextProp.font(${1:propertyName: string}, ${2:font: string}, ${3:local: boolean = false});"
+        ],
+        "description": "Use a custom font for FormattedString."
+    },
+    "TextProps.font": {
+        "prefix": "TextProps.font",
+        "body": [
+            "TextProps.font(${1:propertyName: string}, ${2:indexString: string}, ${3:font: string}, ${4:local: boolean = false});"
+        ],
+        "description": "Use a custom font (argument-based) for FormattedString."
+    },
+    "TextProp.keybind": {
+        "prefix": "TextProp.keybind",
+        "body": [
+            "TextProp.keybind(${1:propertyName: string}, ${2:keybind: string}, ${3:local: boolean = false});"
+        ],
+        "description": "Display one of the player's keybind."
+    },
+    "TextProps.keybind": {
+        "prefix": "TextProps.keybind",
+        "body": [
+            "TextProps.keybind(${1:propertyName: string}, ${2:indexString: string}, ${3:keybind: string}, ${4:local: boolean = false});"
+        ],
+        "description": "Display one of the player's keybind (argument-based)."
+    },
+    "TextProp.nbt": {
+        "prefix": "TextProp.nbt",
+        "body": [
+            "TextProp.nbt(${1:propertyName: string}, ${2:type: Keyword}, ${3:source: string}, ${4:path: Keyword}, ${5:separator: string = \"\"}, ${6:interpret: boolean = false}, ${7:local: boolean = false});"
+        ],
+        "description": "Embed the NBT path inside FormattedString."
+    },
+    "TextProps.nbt": {
+        "prefix": "TextProps.nbt",
+        "body": [
+            "TextProps.nbt(${1:propertyName: string}, ${2:indexString: string}, ${3:type: Keyword}, ${4:source: string}, ${5:path: Keyword}, ${6:separator: string = \"\"}, ${7:interpret: boolean = false}, ${8:local: boolean = false});"
+        ],
+        "description": "Embed the NBT path (argument-based) inside FormattedString."
+    },
+    "Tag.update": {
+        "prefix": "Tag.update",
+        "body": [
+            "Tag.update(${1:selector: TargetSelector}, ${2:tag: Keyword}, ${3:removeFrom: TargetSelector = @e});"
+        ],
+        "description": "Simply remove the tag from removeFrom and add it back to selector."
     }
 }
