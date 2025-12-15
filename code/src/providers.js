@@ -1,8 +1,11 @@
+// src/providers.js
 const vscode = require('vscode');
 const fs = require('fs');
 const path = require('path');
-const { parseParams, paramType, extractVariables, parseFunctionsAndClasses } = require('./jmcParser');
+const { getGlobalScope, getSignatureFromSnippet, getParamsFromSignature, extractVariables, parseFunctionsAndClasses } = require('./jmcParser');
 const { mcCommandDocs, nbtTypes } = require('./constants');
+
+// Fonction pour lister les fichiers JMC récursivement
 function findJmcFiles(dir, rootPath) {
     let results = [];
     try {
@@ -17,64 +20,7 @@ function findJmcFiles(dir, rootPath) {
     return results;
 }
 
-function getImportedFiles(document) {
-    const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
-    const rootPath = workspaceFolder?.uri.fsPath;
-    if (!rootPath) return [];
-
-    const text = document.getText();
-    const importRegex = /^\s*import\s+"([^"]+)"/gm;
-    const importedFiles = new Set();
-
-    let match;
-
-    while ((match = importRegex.exec(text)) !== null) {
-        const importPath = match[1];
-
-        // Cas import de type dossier avec "*"
-        if (importPath.endsWith('/*')) {
-            // chemin du dossier à partir de rootPath + chemin relatif
-            const folderRelative = importPath.slice(0, -2); // enlever "/*"
-            const folderFullPath = path.resolve(rootPath, folderRelative);
-
-            if (fs.existsSync(folderFullPath) && fs.statSync(folderFullPath).isDirectory()) {
-                const files = fs.readdirSync(folderFullPath);
-                for (const f of files) {
-                    if (f.endsWith('.jmc')) {
-                        importedFiles.add(path.resolve(folderFullPath, f));
-                    }
-                }
-            }
-        }
-        else if (importPath === '*') {
-            // importer tous les fichiers .jmc à la racine (rootPath)
-            const files = fs.readdirSync(rootPath);
-            for (const f of files) {
-                if (f.endsWith('.jmc')) {
-                    importedFiles.add(path.resolve(rootPath, f));
-                }
-            }
-        }
-        else {
-            // import simple fichier .jmc
-            let filePath = importPath;
-            if (!filePath.endsWith('.jmc')) {
-                filePath += '.jmc';
-            }
-            const fullPath = path.resolve(rootPath, filePath);
-            if (fs.existsSync(fullPath)) {
-                importedFiles.add(fullPath);
-            }
-        }
-    }
-
-    // Toujours inclure le fichier courant
-    importedFiles.add(path.resolve(document.uri.fsPath));
-
-    return [...importedFiles];
-}
-
-
+// Fonction pour deviner le type NBT
 function inferNbtType(value) {
     value = value.trim();
     if (value.startsWith('"') || value.startsWith("'") || value.startsWith('`')) return nbtTypes.string;
@@ -90,6 +36,8 @@ function inferNbtType(value) {
 }
 
 function initProviders(context, snippets) {
+
+    // --- 1. Autocompletion IMPORTS ---
     const importCompletionProvider = vscode.languages.registerCompletionItemProvider('jmc', {
         async provideCompletionItems(document, position) {
             const linePrefix = document.lineAt(position).text.substring(0, position.character);
@@ -107,11 +55,13 @@ function initProviders(context, snippets) {
         }
     }, '"');
 
+    // --- 2. Autocompletion GENERALE (Commandes, Snippets, Fonctions Utilisateur) ---
     const snippetCompletionProvider = vscode.languages.registerCompletionItemProvider('jmc', {
-        provideCompletionItems() {
+        provideCompletionItems(document, position) {
             const items = [];
+            const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
 
-            // A. Fonctions JMC (Snippets)
+            // A. Fonctions JMC (Snippets Built-in)
             Object.entries(snippets).forEach(([label, snippet]) => {
                 const item = new vscode.CompletionItem(label, vscode.CompletionItemKind.Function);
                 item.insertText = new vscode.SnippetString(snippet.body.join('\n'));
@@ -136,10 +86,33 @@ function initProviders(context, snippets) {
                 items.push(item);
             });
 
+            // C. Fonctions & Classes Utilisateur (Global Scope)
+            if (workspaceFolder) {
+                const scope = getGlobalScope(workspaceFolder.uri.fsPath, document);
+
+                // Fonctions
+                scope.functions.forEach((info, name) => {
+                    const item = new vscode.CompletionItem(name, vscode.CompletionItemKind.Function);
+                    const relPath = vscode.workspace.asRelativePath(info.filePath);
+                    item.detail = `User Function (${relPath})`;
+                    item.documentation = new vscode.MarkdownString(`Defined in **${relPath}** at line ${info.line + 1}`);
+                    items.push(item);
+                });
+
+                // Classes
+                scope.classes.forEach((info, name) => {
+                    const item = new vscode.CompletionItem(name, vscode.CompletionItemKind.Class);
+                    const relPath = vscode.workspace.asRelativePath(info.filePath);
+                    item.detail = `User Class (${relPath})`;
+                    items.push(item);
+                });
+            }
+
             return items;
         }
     });
 
+    // --- 3. Signature Help ---
     const signatureProvider = vscode.languages.registerSignatureHelpProvider('jmc', {
         provideSignatureHelp(document, position) {
             const line = document.lineAt(position).text.substring(0, position.character);
@@ -151,20 +124,12 @@ function initProviders(context, snippets) {
             const snippet = snippets[fnName];
             if (!snippet) return null;
 
-            const params = parseParams(snippet.body);
+            const signatureLabel = getSignatureFromSnippet(snippet.body);
+            const params = getParamsFromSignature(signatureLabel);
 
-            // SignatureInfo
-            const label = `function ${fnName}(${params.join(', ')})`;
-            const sigInfo = new vscode.SignatureInformation(label, new vscode.MarkdownString()
-                .appendCodeblock(label, 'jmc')
-                .appendMarkdown(`\n\n${snippet.description || 'No documentation available.'}`));
+            const sigInfo = new vscode.SignatureInformation(signatureLabel, new vscode.MarkdownString(snippet.description));
+            sigInfo.parameters = params.map(p => new vscode.ParameterInformation(p));
 
-            // Parameters
-            sigInfo.parameters = params.map(p =>
-                new vscode.ParameterInformation(p, new vscode.MarkdownString(`\`${p}\`: ${paramType(p)}`))
-            );
-
-            // SignatureHelp object
             const help = new vscode.SignatureHelp();
             help.signatures = [sigInfo];
             help.activeSignature = 0;
@@ -174,7 +139,7 @@ function initProviders(context, snippets) {
         }
     }, '(', ',');
 
-    // MULTIFICHIER
+    // --- 4. Hover Provider ---
     const hoverProvider = vscode.languages.registerHoverProvider('jmc', {
         provideHover(document, position) {
             const range = document.getWordRangeAtPosition(position, /[@~^A-Za-z0-9_.:$]+/);
@@ -183,24 +148,16 @@ function initProviders(context, snippets) {
             const word = document.getText(range);
             const lineText = document.lineAt(position.line).text;
 
-            // A. Hover sur une clé de structure (ex: data: '0')
-            // Regex pour capturer "mot_clé :" suivi d'une valeur, sur la même ligne ou lignes suivantes (approximatif pour le hover)
+            // A. Clé NBT
             const keyRegex = new RegExp(`\\b${word}\\s*:\\s*(.*)`);
             const keyMatch = keyRegex.exec(lineText);
-
             if (keyMatch && !word.startsWith('$') && !word.includes('::')) {
-                // C'est une clé d'objet, on essaie de deviner le type de la valeur
                 let valuePart = keyMatch[1].trim();
-                // Si la valeur est vide (sur la ligne suivante), on regarde un peu après (simplifié)
                 if ((valuePart === '' || valuePart === '{' || valuePart === '[') && position.line + 1 < document.lineCount) {
-                    // Si c'est un début de bloc, on assume compound/list
                     if (lineText.includes('{')) valuePart = '{';
                     else if (lineText.includes('[')) valuePart = '[';
                 }
-
-                // On retire la virgule finale si présente
                 if (valuePart.endsWith(',')) valuePart = valuePart.slice(0, -1);
-
                 const type = inferNbtType(valuePart);
                 const md = new vscode.MarkdownString();
                 md.appendCodeblock(`${word}: ${type}`, 'jmc');
@@ -223,38 +180,107 @@ function initProviders(context, snippets) {
                 return new vscode.Hover(md, range);
             }
 
-            // D. Fonctions JMC & User Functions (Inchangé)
-            // ... (Copiez votre code existant pour les snippets et user functions ici) ...
-
-            // Built-in functions (Snippets)
+            // D. Built-in Snippets
             const snippet = snippets[word];
             if (snippet) {
                 const signature = getSignatureFromSnippet(snippet.body);
                 const md = new vscode.MarkdownString();
                 md.appendCodeblock(signature, 'jmc');
-                if (snippet.description) {
-                    md.appendMarkdown(`\n\n${snippet.description}`);
-                }
+                if (snippet.description) md.appendMarkdown(`\n\n${snippet.description}`);
                 return new vscode.Hover(md, range);
             }
 
-            // User defined functions (Multi-files)
-            // (Code existant pour getImportedFiles et parsing...)
+            // E. Fonctions Utilisateur (Global Scope)
+            const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+            if (workspaceFolder) {
+                const scope = getGlobalScope(workspaceFolder.uri.fsPath, document);
+
+                if (scope.functions.has(word)) {
+                    const info = scope.functions.get(word);
+                    const relPath = vscode.workspace.asRelativePath(info.filePath);
+                    const md = new vscode.MarkdownString();
+                    md.appendCodeblock(`function ${word}()`, 'jmc');
+                    md.appendMarkdown(`\n\nUser defined function in **${relPath}** at line ${info.line + 1}`);
+                    return new vscode.Hover(md, range);
+                }
+
+                if (scope.classes.has(word)) {
+                    const info = scope.classes.get(word);
+                    const relPath = vscode.workspace.asRelativePath(info.filePath);
+                    const md = new vscode.MarkdownString();
+                    md.appendCodeblock(`class ${word}`, 'jmc');
+                    md.appendMarkdown(`\n\nUser class defined in **${relPath}**`);
+                    return new vscode.Hover(md, range);
+                }
+            }
         }
     });
 
+    // --- 5. Definition Provider (Go To Definition) ---
+    const definitionProvider = vscode.languages.registerDefinitionProvider('jmc', {
+        async provideDefinition(document, position) {
+            const line = document.lineAt(position.line);
+
+            // A. Import Definition
+            const importMatch = line.text.match(/import\s+"([^"]+)"/);
+            if (importMatch) {
+                const relativePath = importMatch[1];
+                const quoteIndex = line.text.indexOf(`"${relativePath}"`);
+                const importRange = new vscode.Range(line.lineNumber, quoteIndex + 1, line.lineNumber, quoteIndex + 1 + relativePath.length);
+
+                if (importRange.contains(position)) {
+                    const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+                    if (!workspaceFolder) return null;
+
+                    const currentDir = path.dirname(document.uri.fsPath);
+                    let targetPath = relativePath;
+                    if (!targetPath.endsWith('.jmc') && !targetPath.endsWith('*')) targetPath += '.jmc';
+
+                    let absPath = path.resolve(currentDir, targetPath);
+                    if (!fs.existsSync(absPath)) {
+                        absPath = path.resolve(workspaceFolder.uri.fsPath, targetPath);
+                    }
+
+                    if (fs.existsSync(absPath)) {
+                        return new vscode.Location(vscode.Uri.file(absPath), new vscode.Position(0, 0));
+                    }
+                }
+            }
+
+            // B. Function/Class Definition
+            const wordRange = document.getWordRangeAtPosition(position, /[a-zA-Z0-9_.]+/);
+            if (!wordRange) return null;
+            const word = document.getText(wordRange);
+
+            const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+            if (workspaceFolder) {
+                const scope = getGlobalScope(workspaceFolder.uri.fsPath, document);
+
+                if (scope.functions.has(word)) {
+                    const info = scope.functions.get(word);
+                    return new vscode.Location(vscode.Uri.file(info.filePath), new vscode.Position(info.line, 0));
+                }
+
+                if (scope.classes.has(word)) {
+                    const info = scope.classes.get(word);
+                    return new vscode.Location(vscode.Uri.file(info.filePath), new vscode.Position(info.line, 0));
+                }
+            }
+            return null;
+        }
+    });
+
+    // --- Providers Complémentaires (Variables) ---
     const variableCompletionProvider = vscode.languages.registerCompletionItemProvider('jmc', {
         provideCompletionItems(document) {
             const variables = new Set();
             const importedFiles = getImportedFiles(document);
             if (!importedFiles.length) return [];
-
             for (const filePath of importedFiles) {
                 const content = fs.readFileSync(filePath, 'utf8');
                 const { normal } = extractVariables(content);
                 for (const v of normal) variables.add(v);
             }
-
             return [...variables].map(v => new vscode.CompletionItem(v, vscode.CompletionItemKind.Variable));
         }
     }, '$');
@@ -264,94 +290,14 @@ function initProviders(context, snippets) {
             const storages = new Set();
             const importedFiles = getImportedFiles(document);
             if (!importedFiles.length) return [];
-
             for (const filePath of importedFiles) {
                 const content = fs.readFileSync(filePath, 'utf8');
                 const { storage } = extractVariables(content);
                 for (const s of storage) storages.add(s);
             }
-
             return [...storages].map(v => new vscode.CompletionItem(v, vscode.CompletionItemKind.Variable));
         }
     }, ':');
-
-    const functionCompletionProvider = vscode.languages.registerCompletionItemProvider('jmc', {
-        provideCompletionItems(document) {
-            const items = [];
-            const classSet = new Set();
-            const importedFiles = getImportedFiles(document);
-            if (!importedFiles.length) return [];
-
-            for (const filePath of importedFiles) {
-                const content = fs.readFileSync(filePath, 'utf8');
-                const { classMap, functionMap } = parseFunctionsAndClasses(content);
-
-                for (const className of classMap.keys()) {
-                    if (!classSet.has(className)) {
-                        classSet.add(className);
-                        items.push(new vscode.CompletionItem(className, vscode.CompletionItemKind.Class));
-                    }
-                }
-
-                for (const [fnName] of functionMap.entries()) {
-                    items.push(new vscode.CompletionItem(fnName, vscode.CompletionItemKind.Function));
-                }
-            }
-
-            return items;
-        }
-    });
-
-    const definitionProvider = vscode.languages.registerDefinitionProvider('jmc', {
-        async provideDefinition(document, position) {
-            const line = document.lineAt(position.line);
-            const importMatch = line.text.match(/import\s+"([^"]+)"/);
-            if (importMatch) {
-                const relativePath = importMatch[1];
-                const quoteIndex = line.text.indexOf(`"${relativePath}"`);
-                const importRange = new vscode.Range(line.lineNumber, quoteIndex + 1, line.lineNumber, quoteIndex + 1 + relativePath.length);
-                if (importRange.contains(position)) {
-                    const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
-                    if (!workspaceFolder) return null;
-
-                    const targetPath = path.join(workspaceFolder.uri.fsPath, relativePath + '.jmc');
-                    if (fs.existsSync(targetPath)) {
-                        return new vscode.Location(vscode.Uri.file(targetPath), new vscode.Position(0, 0));
-                    }
-                }
-            }
-
-            const wordRange = document.getWordRangeAtPosition(position, /[a-zA-Z0-9_.]+/);
-            if (!wordRange) return null;
-
-            const word = document.getText(wordRange);
-            const text = document.getText();
-
-            const offset = document.offsetAt(wordRange.start);
-            if (/function\s*$/.test(text.slice(Math.max(0, offset - 10), offset))) {
-                const usageRegex = new RegExp(`\\b${word}\\s*\\(`, 'g');
-                const locations = [];
-                let match;
-                while ((match = usageRegex.exec(text)) !== null) {
-                    if (/function\s*$/.test(text.slice(Math.max(0, match.index - 10), match.index))) continue;
-                    const startPos = document.positionAt(match.index);
-                    locations.push(new vscode.Location(document.uri, new vscode.Range(startPos, startPos.translate(0, word.length))));
-                }
-                if (locations.length) vscode.commands.executeCommand('editor.action.showReferences', document.uri, position, locations);
-                else vscode.window.showInformationMessage(`No usages found for function '${word}'.`);
-                return null;
-            }
-
-            const defRegex = new RegExp(`function\\s+(?:[\\w.]*\\.)?${word}\\b`);
-            const defMatch = defRegex.exec(text);
-            if (defMatch) {
-                const pos = document.positionAt(defMatch.index + defMatch[0].lastIndexOf(word));
-                return new vscode.Location(document.uri, pos);
-            }
-
-            return null;
-        }
-    });
 
     return [
         snippetCompletionProvider,
@@ -359,10 +305,28 @@ function initProviders(context, snippets) {
         signatureProvider,
         variableCompletionProvider,
         storageCompletionProvider,
-        functionCompletionProvider,
         definitionProvider,
         importCompletionProvider
     ];
+}
+
+// Fonction utilitaire locale pour les variables
+function getImportedFiles(document) {
+    // Cette fonction reste nécessaire pour variableCompletionProvider qui lit fichier par fichier
+    const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+    if (!workspaceFolder) return [];
+    const text = document.getText();
+    const importRegex = /^\s*import\s+"([^"]+)"/gm;
+    const importedFiles = new Set();
+    let match;
+    while ((match = importRegex.exec(text)) !== null) {
+        let importPath = match[1];
+        if (!importPath.endsWith('.jmc') && !importPath.includes('*')) importPath += '.jmc';
+        const fullPath = path.resolve(path.dirname(document.uri.fsPath), importPath);
+        if (fs.existsSync(fullPath)) importedFiles.add(fullPath);
+    }
+    importedFiles.add(path.resolve(document.uri.fsPath));
+    return [...importedFiles];
 }
 
 module.exports = { initProviders };

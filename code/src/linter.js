@@ -11,6 +11,8 @@ const decoratorDecoration = vscode.window.createTextEditorDecorationType({ fontW
 const ignoreDecoration = vscode.window.createTextEditorDecorationType({ fontWeight: 'bold' });
 const ignoreContentDecoration = vscode.window.createTextEditorDecorationType({ fontStyle: 'italic' });
 
+
+
 let moduleSnippets = {};
 
 function setLinterSnippets(snippets) {
@@ -18,6 +20,82 @@ function setLinterSnippets(snippets) {
 }
 
 // --- Fonctions Utilitaires ---
+class VirtualDocument {
+    constructor(content) {
+        this.text = content;
+        // On pré-calcule les offsets de ligne pour positionAt
+        this.lineOffsets = [0];
+        for (let i = 0; i < content.length; i++) {
+            if (content[i] === '\n') this.lineOffsets.push(i + 1);
+        }
+        this.lines = content.split(/\r?\n/);
+    }
+
+    getText() { return this.text; }
+
+    get lineCount() { return this.lines.length; }
+
+    lineAt(lineIndex) {
+        if (lineIndex >= this.lines.length) return { text: "" };
+        return { text: this.lines[lineIndex] };
+    }
+
+    positionAt(offset) {
+        // Recherche dichotomique pour trouver la ligne
+        let low = 0;
+        let high = this.lineOffsets.length - 1;
+        while (low <= high) {
+            const mid = Math.floor((low + high) / 2);
+            if (this.lineOffsets[mid] > offset) high = mid - 1;
+            else low = mid + 1;
+        }
+        const line = high;
+        const character = offset - this.lineOffsets[line];
+        return new vscode.Position(line, character);
+    }
+}
+
+function getAllFilesRecursive(entryPath, rootPath) {
+    const visited = new Set();
+    const filesToLint = new Set();
+
+    function traverse(filePath) {
+        const normPath = path.resolve(filePath).toLowerCase();
+        if (visited.has(normPath)) return;
+        visited.add(normPath);
+
+        if (fs.existsSync(filePath)) {
+            filesToLint.add(path.resolve(filePath));
+            const content = fs.readFileSync(filePath, 'utf8');
+
+            // Regex import simple pour trouver les dépendances
+            const importRegex = /^\s*import\s+"([^"]+)"/gm;
+            let match;
+            while ((match = importRegex.exec(content)) !== null) {
+                let importPath = match[1];
+                const currentDir = path.dirname(filePath);
+
+                if (importPath.endsWith('/*')) {
+                    // Import dossier (simplifié)
+                    const targetDir = path.resolve(currentDir, importPath.slice(0, -2));
+                    if (fs.existsSync(targetDir)) {
+                        try {
+                            fs.readdirSync(targetDir).forEach(f => {
+                                if (f.endsWith('.jmc')) traverse(path.join(targetDir, f));
+                            });
+                        } catch (e) { }
+                    }
+                } else {
+                    if (!importPath.endsWith('.jmc')) importPath += '.jmc';
+                    traverse(path.resolve(currentDir, importPath));
+                }
+            }
+        }
+    }
+
+    traverse(entryPath);
+    return [...filesToLint];
+}
 
 function isRangeIgnored(range, ignoredZones) {
     for (const zone of ignoredZones) {
@@ -265,14 +343,45 @@ function processCodeBlock(blockText, baseLine, baseOffset, diags, jmcFunctions, 
 
 // --- Fonction Principale ---
 
-function getLinterDiagnostics(document) {
+/**
+ * Linter Global : Retourne une Map<FilePath, Diagnostic[]>
+ */
+function getLinterDiagnosticsForWorkspace(entryDocument) {
+    const diagnosticsMap = new Map();
+    const rootPath = vscode.workspace.getWorkspaceFolder(entryDocument.uri).uri.fsPath;
+
+    // 1. Récupérer tous les fichiers liés
+    const allFiles = getAllFilesRecursive(entryDocument.uri.fsPath, rootPath);
+
+    // 2. Analyser chaque fichier
+    for (const filePath of allFiles) {
+        let doc;
+        // Si c'est le fichier ouvert, on prend le document VSCode (plus à jour car non-sauvegardé)
+        if (path.resolve(filePath) === path.resolve(entryDocument.uri.fsPath)) {
+            doc = entryDocument;
+        } else {
+            // Sinon on lit sur le disque
+            try {
+                const content = fs.readFileSync(filePath, 'utf8');
+                doc = new VirtualDocument(content);
+            } catch (e) { continue; }
+        }
+
+        const result = lintSingleDocument(doc);
+        if (result.diagnostics.length > 0) {
+            diagnosticsMap.set(filePath, result.diagnostics);
+        }
+    }
+
+    return { diagnosticsMap };
+}
+
+// C'est votre ancienne fonction "getLinterDiagnostics", renommée pour traiter un seul doc
+function lintSingleDocument(document) {
     const jmcFunctions = Object.keys(moduleSnippets);
     const text = document.getText();
     const diags = [];
-
-    const decorationRanges = {
-        decorator: [], fade: [], unused: [], ignoreMarker: [], ignoreContent: []
-    };
+    // On ignore les décorations pour les fichiers non ouverts (pas possible de les appliquer)
 
     // 1. Zones Ignorées
     const ignoredZones = [];
@@ -284,43 +393,21 @@ function getLinterDiagnostics(document) {
             const endPos = document.positionAt(endSearchIndex);
             const ignoreZone = new vscode.Range(startPos, endPos.translate(0, 14));
             ignoredZones.push(ignoreZone);
-            decorationRanges.ignoreContent.push(ignoreZone);
-            decorationRanges.ignoreMarker.push(document.lineAt(startPos.line).range);
-            decorationRanges.ignoreMarker.push(document.lineAt(endPos.line).range);
             searchIndex = endSearchIndex + 14;
         } else break;
     }
 
-    // 2. Décorateurs
-    const decoratorRegex = /@(\w+)/g;
-    let dMatch;
-    while ((dMatch = decoratorRegex.exec(text)) !== null) {
-        decorationRanges.decorator.push(new vscode.Range(document.positionAt(dMatch.index), document.positionAt(dMatch.index + dMatch[0].length)));
-    }
-
-    // 3. Analyse Globale des Fonctions (pour unused/unknown)
-    const importedFiles = getImportedFiles(document);
-    const globalDefinedFunctions = new Set();
-    const globalUsedFunctions = new Set();
-
-    for (const filePath of importedFiles) {
-        if (!fs.existsSync(filePath)) continue;
-        const content = fs.readFileSync(filePath, 'utf8').replace(/(\/\/|#).*/g, '');
-        getDefinedFunctionsFromText(content).forEach(f => globalDefinedFunctions.add(f));
-        getAllCallIdentifiers(content).forEach(f => globalUsedFunctions.add(f));
-    }
-
+    // 2. Fonctions Inconnues (On simplifie l'analyse globale ici pour la perf)
     const definedFunctionsInDoc = getDefinedFunctionsFromText(text.replace(/(\/\/|#).*/g, ''));
-    // Pour isValid, on a besoin de la liste complète des fonctions définies (locales + importées)
-    // definedFunctionsInDoc ici ne contient que les locales, on fusionne pour le validateur :
-    const allAvailableFunctions = [...definedFunctionsInDoc, ...globalDefinedFunctions];
+    processCodeBlock(text, 0, 0, diags, jmcFunctions, definedFunctionsInDoc);
 
-    // 4. Exécuter les validateurs
-    processCodeBlock(text, 0, 0, diags, jmcFunctions, allAvailableFunctions);
+    // 3. Semicolons
     validateStructureAndSemicolons(document, diags, ignoredZones);
     validateSimpleAssignments(document, diags, ignoredZones);
 
-    // 5. Validateur Storage Opérateur (:=)
+    // 4. Storage Operators
+    // ... (Copiez votre logique storageOpRegex ici) ...
+    // Note: Pour VirtualDocument, assurez-vous que document.lineCount fonctionne (c'est le cas avec la classe ci-dessus)
     const storageOpRegex = /(:[-+\*\/%]?=)/g;
     const storageVarRegex = /([a-zA-Z0-9_.]*::[a-zA-Z0-9_.]+)/g;
     for (let i = 0; i < document.lineCount; i++) {
@@ -335,44 +422,20 @@ function getLinterDiagnostics(document) {
                 const absIndex = rhsStart + varMatch.index;
                 const before = lineText.substring(0, absIndex).trimEnd();
                 const after = lineText.substring(absIndex + varName.length).trimStart();
-
                 if (!before.endsWith('{') || !after.startsWith('}')) {
                     const range = new vscode.Range(i, absIndex, i, absIndex + varName.length);
                     if (!isRangeIgnored(range, ignoredZones)) {
-                        diags.push(new vscode.Diagnostic(range, `Storage variable '${varName}' must be wrapped in { }.`, vscode.DiagnosticSeverity.Error));
+                        diags.push(new vscode.Diagnostic(range, `Linter: Storage variable '${varName}' must be wrapped in { }.`, vscode.DiagnosticSeverity.Error));
                     }
                 }
             }
         }
     }
 
-    // 6. Gestion Unused / Fade (Fonctions définies mais pas utilisées)
-    const localDefinedNames = definedFunctionsInDoc.map(d => d.split('.').pop());
-    const simpleUsed = new Set([...globalUsedFunctions].map(f => f.split('.').pop()));
-
-    // Détecter @add pour ne pas marquer unused
-    const addDecorated = new Set();
-    let addMatch;
-    const addRegex = /@add\s*(?:\([^)]*\))?\s*function\s+([A-Za-z_][A-Za-z0-9_]*)/g;
-    while ((addMatch = addRegex.exec(text)) !== null) addDecorated.add(addMatch[1]);
-
-    localDefinedNames.forEach(fn => {
-        if (!simpleUsed.has(fn) && !addDecorated.has(fn)) {
-            const defRegex = new RegExp(`function\\s+([A-Za-z_][A-Za-z0-9_.]*\\.)?${fn}\\b`);
-            const match = defRegex.exec(text);
-            if (match) {
-                const fullName = (match[1] || '') + fn;
-                const startPos = document.positionAt(match.index + match[0].lastIndexOf(fullName));
-                const range = new vscode.Range(startPos, startPos.translate(0, fullName.length));
-                if (!isRangeIgnored(range, ignoredZones)) decorationRanges.unused.push(range);
-            }
-        }
-    });
-
     const finalDiags = diags.filter(d => !isRangeIgnored(d.range, ignoredZones));
     finalDiags.forEach(d => d.source = "Linter");
 
-    return { diagnostics: finalDiags, decorations: decorationRanges };
+    return { diagnostics: finalDiags };
 }
 
 function applyDecorations(editor, ranges) {
@@ -393,7 +456,7 @@ function clearDecorations(editor) {
 
 module.exports = {
     setLinterSnippets,
-    getLinterDiagnostics,
+    getLinterDiagnosticsForWorkspace,
     applyDecorations,
     clearDecorations
 };
