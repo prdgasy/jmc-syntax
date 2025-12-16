@@ -20,6 +20,24 @@ function findJmcFiles(dir, rootPath) {
     return results;
 }
 
+// Fonction utilitaire locale pour les variables (utilisée par variableCompletionProvider)
+function getImportedFiles(document) {
+    const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+    if (!workspaceFolder) return [];
+    const text = document.getText();
+    const importRegex = /^\s*import\s+"([^"]+)"/gm;
+    const importedFiles = new Set();
+    let match;
+    while ((match = importRegex.exec(text)) !== null) {
+        let importPath = match[1];
+        if (!importPath.endsWith('.jmc') && !importPath.includes('*')) importPath += '.jmc';
+        const fullPath = path.resolve(path.dirname(document.uri.fsPath), importPath);
+        if (fs.existsSync(fullPath)) importedFiles.add(fullPath);
+    }
+    importedFiles.add(path.resolve(document.uri.fsPath));
+    return [...importedFiles];
+}
+
 // Fonction pour deviner le type NBT
 function inferNbtType(value) {
     value = value.trim();
@@ -28,12 +46,12 @@ function inferNbtType(value) {
     if (value.startsWith('[')) return nbtTypes.list;
     if (value === 'true' || value === 'false') return nbtTypes.byte;
     if (/^-?\d+[bB]$/.test(value)) return nbtTypes.byte;
-    if (/^-?\d+[sS]$/.test(value)) return nbtTypes.short || "NBTShort";
+    if (/^-?\d+[sS]$/.test(value)) return nbtTypes.short || "Short";
     if (/^-?\d+[lL]$/.test(value)) return nbtTypes.long;
     if (/^-?\d+[fF]$/.test(value) || /^-?\d+\.\d+[fF]?$/.test(value)) return nbtTypes.float;
     if (/^-?\d+[dD]$/.test(value) || /^-?\d+\.\d+[dD]?$/.test(value)) return nbtTypes.double;
     if (/^-?\d+$/.test(value)) return nbtTypes.integer;
-    return "unknown";
+    return "Any";
 }
 
 function initProviders(context, snippets) {
@@ -90,8 +108,6 @@ function initProviders(context, snippets) {
             // C. Fonctions & Classes Utilisateur (Global Scope)
             if (workspaceFolder) {
                 const scope = getGlobalScope(workspaceFolder.uri.fsPath, document);
-
-                // Fonctions
                 scope.functions.forEach((info, name) => {
                     const item = new vscode.CompletionItem(name, vscode.CompletionItemKind.Function);
                     const relPath = vscode.workspace.asRelativePath(info.filePath);
@@ -99,8 +115,6 @@ function initProviders(context, snippets) {
                     item.documentation = new vscode.MarkdownString(`Defined in **${relPath}** at line ${info.line + 1}`);
                     items.push(item);
                 });
-
-                // Classes
                 scope.classes.forEach((info, name) => {
                     const item = new vscode.CompletionItem(name, vscode.CompletionItemKind.Class);
                     const relPath = vscode.workspace.asRelativePath(info.filePath);
@@ -108,7 +122,6 @@ function initProviders(context, snippets) {
                     items.push(item);
                 });
             }
-
             return items;
         }
     });
@@ -127,7 +140,6 @@ function initProviders(context, snippets) {
 
             const signatureLabel = getSignatureFromSnippet(snippet.body);
             const params = getParamsFromSignature(signatureLabel);
-
             const sigInfo = new vscode.SignatureInformation(signatureLabel, new vscode.MarkdownString(snippet.description));
             sigInfo.parameters = params.map(p => new vscode.ParameterInformation(p));
 
@@ -135,7 +147,6 @@ function initProviders(context, snippets) {
             help.signatures = [sigInfo];
             help.activeSignature = 0;
             help.activeParameter = Math.min((paramsEntered.match(/,/g) || []).length, params.length - 1);
-
             return help;
         }
     }, '(', ',');
@@ -154,9 +165,11 @@ function initProviders(context, snippets) {
             const keyMatch = keyRegex.exec(lineText);
             if (keyMatch && !word.startsWith('$') && !word.includes('::')) {
                 let valuePart = keyMatch[1].trim();
+                // Gestion multiligne basique
                 if ((valuePart === '' || valuePart === '{' || valuePart === '[') && position.line + 1 < document.lineCount) {
-                    if (lineText.includes('{')) valuePart = '{';
-                    else if (lineText.includes('[')) valuePart = '[';
+                    const nextLine = document.lineAt(position.line + 1).text.trim();
+                    if (lineText.trim().endsWith('{') || nextLine.startsWith('{')) valuePart = '{';
+                    else if (lineText.trim().endsWith('[') || nextLine.startsWith('[')) valuePart = '[';
                 }
                 if (valuePart.endsWith(',')) valuePart = valuePart.slice(0, -1);
                 const type = inferNbtType(valuePart);
@@ -168,44 +181,25 @@ function initProviders(context, snippets) {
             // B. Variables
             if (word.startsWith('$') || word.includes('::')) {
                 const markdown = new vscode.MarkdownString();
-
                 if (word.startsWith('$')) {
-                    markdown.appendCodeblock(`score ${word}: int`, 'jmc');
+                    markdown.appendCodeblock(`score ${word}: Int`, 'jmc');
                     markdown.appendMarkdown('\n\nJMC Variable (Scoreboard Integer)');
                 } else if (word.includes('::')) {
                     const text = document.getText();
-                    // Regex plus robuste :
-                    // 1. Cherche ::var
-                    // 2. Cherche un = (peut y avoir des espaces/sauts de ligne avant)
-                    // 3. Capture ce qui suit jusqu'au premier point-virgule
                     const escapedWord = word.replace(/\./g, '\\.');
-                    // Flag 's' (dotAll) n'est pas dispo en JS old school, on utilise [\s\S]
                     const assignRegex = new RegExp(`${escapedWord}\\s*=\\s*([^;]+)`, 'm');
-
                     const match = assignRegex.exec(text);
-
-                    let type = "unknown";
+                    let type = "Unknown";
                     if (match) {
                         let valStart = match[1].trim();
-                        // On nettoie pour ne garder que le début de la valeur
-                        // Si c'est un objet/liste, on prend juste le premier char
                         if (valStart.startsWith('{')) valStart = '{';
                         else if (valStart.startsWith('[')) valStart = '[';
-                        else {
-                            // Sinon on prend le premier "mot" (jusqu'à un espace ou fin de ligne)
-                            valStart = valStart.split(/\s/)[0];
-                        }
-
+                        else valStart = valStart.split(/[,\s]/)[0];
                         type = inferNbtType(valStart);
                     }
-
-                    // Utilisation explicite de nbtTypes (au cas où inferNbtType renverrait une clé brute)
-                    // Mais inferNbtType renvoie déjà les valeurs de nbtTypes (ex: "NBTByte")
-
                     markdown.appendCodeblock(`storage ${word}: ${type}`, 'jmc');
                     markdown.appendMarkdown('\n\nJMC Storage Variable');
                 }
-
                 return new vscode.Hover(markdown, range);
             }
 
@@ -228,11 +222,10 @@ function initProviders(context, snippets) {
                 return new vscode.Hover(md, range);
             }
 
-            // E. Fonctions Utilisateur (Global Scope)
+            // E. Fonctions Utilisateur
             const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
             if (workspaceFolder) {
                 const scope = getGlobalScope(workspaceFolder.uri.fsPath, document);
-
                 if (scope.functions.has(word)) {
                     const info = scope.functions.get(word);
                     const relPath = vscode.workspace.asRelativePath(info.filePath);
@@ -241,7 +234,6 @@ function initProviders(context, snippets) {
                     md.appendMarkdown(`\n\nUser defined function in **${relPath}** at line ${info.line + 1}`);
                     return new vscode.Hover(md, range);
                 }
-
                 if (scope.classes.has(word)) {
                     const info = scope.classes.get(word);
                     const relPath = vscode.workspace.asRelativePath(info.filePath);
@@ -254,34 +246,26 @@ function initProviders(context, snippets) {
         }
     });
 
-    // --- 5. Definition Provider (Go To Definition) ---
+    // --- 5. Definition Provider ---
     const definitionProvider = vscode.languages.registerDefinitionProvider('jmc', {
         async provideDefinition(document, position) {
             const line = document.lineAt(position.line);
+            const importMatch = line.text.match(/import\s+"([^"]+)"/);
 
             // A. Import Definition
-            const importMatch = line.text.match(/import\s+"([^"]+)"/);
             if (importMatch) {
                 const relativePath = importMatch[1];
                 const quoteIndex = line.text.indexOf(`"${relativePath}"`);
                 const importRange = new vscode.Range(line.lineNumber, quoteIndex + 1, line.lineNumber, quoteIndex + 1 + relativePath.length);
-
                 if (importRange.contains(position)) {
                     const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
                     if (!workspaceFolder) return null;
-
                     const currentDir = path.dirname(document.uri.fsPath);
                     let targetPath = relativePath;
                     if (!targetPath.endsWith('.jmc') && !targetPath.endsWith('*')) targetPath += '.jmc';
-
                     let absPath = path.resolve(currentDir, targetPath);
-                    if (!fs.existsSync(absPath)) {
-                        absPath = path.resolve(workspaceFolder.uri.fsPath, targetPath);
-                    }
-
-                    if (fs.existsSync(absPath)) {
-                        return new vscode.Location(vscode.Uri.file(absPath), new vscode.Position(0, 0));
-                    }
+                    if (!fs.existsSync(absPath)) absPath = path.resolve(workspaceFolder.uri.fsPath, targetPath);
+                    if (fs.existsSync(absPath)) return new vscode.Location(vscode.Uri.file(absPath), new vscode.Position(0, 0));
                 }
             }
 
@@ -289,16 +273,13 @@ function initProviders(context, snippets) {
             const wordRange = document.getWordRangeAtPosition(position, /[a-zA-Z0-9_.]+/);
             if (!wordRange) return null;
             const word = document.getText(wordRange);
-
             const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
             if (workspaceFolder) {
                 const scope = getGlobalScope(workspaceFolder.uri.fsPath, document);
-
                 if (scope.functions.has(word)) {
                     const info = scope.functions.get(word);
                     return new vscode.Location(vscode.Uri.file(info.filePath), new vscode.Position(info.line, 0));
                 }
-
                 if (scope.classes.has(word)) {
                     const info = scope.classes.get(word);
                     return new vscode.Location(vscode.Uri.file(info.filePath), new vscode.Position(info.line, 0));
@@ -308,12 +289,11 @@ function initProviders(context, snippets) {
         }
     });
 
-    // --- Providers Complémentaires (Variables) ---
+    // --- 6. Variables/Storage Completion ---
     const variableCompletionProvider = vscode.languages.registerCompletionItemProvider('jmc', {
         provideCompletionItems(document) {
             const variables = new Set();
             const importedFiles = getImportedFiles(document);
-            if (!importedFiles.length) return [];
             for (const filePath of importedFiles) {
                 const content = fs.readFileSync(filePath, 'utf8');
                 const { normal } = extractVariables(content);
@@ -327,7 +307,6 @@ function initProviders(context, snippets) {
         provideCompletionItems(document) {
             const storages = new Set();
             const importedFiles = getImportedFiles(document);
-            if (!importedFiles.length) return [];
             for (const filePath of importedFiles) {
                 const content = fs.readFileSync(filePath, 'utf8');
                 const { storage } = extractVariables(content);
@@ -346,25 +325,6 @@ function initProviders(context, snippets) {
         definitionProvider,
         importCompletionProvider
     ];
-}
-
-// Fonction utilitaire locale pour les variables
-function getImportedFiles(document) {
-    // Cette fonction reste nécessaire pour variableCompletionProvider qui lit fichier par fichier
-    const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
-    if (!workspaceFolder) return [];
-    const text = document.getText();
-    const importRegex = /^\s*import\s+"([^"]+)"/gm;
-    const importedFiles = new Set();
-    let match;
-    while ((match = importRegex.exec(text)) !== null) {
-        let importPath = match[1];
-        if (!importPath.endsWith('.jmc') && !importPath.includes('*')) importPath += '.jmc';
-        const fullPath = path.resolve(path.dirname(document.uri.fsPath), importPath);
-        if (fs.existsSync(fullPath)) importedFiles.add(fullPath);
-    }
-    importedFiles.add(path.resolve(document.uri.fsPath));
-    return [...importedFiles];
 }
 
 module.exports = { initProviders };

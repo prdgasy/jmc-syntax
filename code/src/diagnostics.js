@@ -52,7 +52,8 @@ async function processDocument(document) {
     if (compilerResult.success) {
         outputChannel.appendLine("Compilation Successful.");
         if (editor && editor.document === document) {
-            clearDecorations(editor);
+            // clearDecorations(editor);
+            diagnosticCollection.clear();
             showSuccessMessage(editor); // <--- NOUVEAU
         }
         return;

@@ -9,15 +9,15 @@ const jmcKeywords = [
 const functionExceptionList = ['if', 'while', 'for', 'switch'];
 
 const nbtTypes = {
-    string: "NBTString",
-    integer: "NBTInt",
-    float: "NBTFloat",
-    byte: "NBTByte",
-    compound: "NBTCompound",
-    list: "NBTList",
-    long: "NBTLong",
-    double: "NBTDouble",
-    short: "NBTShort" // Ajouté
+    string: "string",
+    integer: "int",
+    float: "float",
+    byte: "byte",
+    compound: "compound",
+    list: "list",
+    long: "long",
+    double: "double",
+    short: "short"
 };
 
 // Documentation complète des commandes Minecraft (1.21+)
