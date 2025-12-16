@@ -1,17 +1,13 @@
 const vscode = require('vscode');
 const fs = require('fs');
 const path = require('path');
-const { getDefinedFunctionsFromText, getAllCallIdentifiers } = require('./jmcParser');
-const { jmcKeywords, mcCommands, functionExceptionList } = require('./constants');
+const { getGlobalScope } = require('./jmcParser');
+const { jmcKeywords, mcCommands } = require('./constants');
 
-// --- Décorations Visuelles ---
-const fadeDecoration = vscode.window.createTextEditorDecorationType({ opacity: '0.5' });
-const unusedDecoration = vscode.window.createTextEditorDecorationType({ opacity: '0.5' });
+// --- Décorations ---
 const decoratorDecoration = vscode.window.createTextEditorDecorationType({ fontWeight: 'bold' });
 const ignoreDecoration = vscode.window.createTextEditorDecorationType({ fontWeight: 'bold' });
 const ignoreContentDecoration = vscode.window.createTextEditorDecorationType({ fontStyle: 'italic' });
-
-
 
 let moduleSnippets = {};
 
@@ -20,82 +16,6 @@ function setLinterSnippets(snippets) {
 }
 
 // --- Fonctions Utilitaires ---
-class VirtualDocument {
-    constructor(content) {
-        this.text = content;
-        // On pré-calcule les offsets de ligne pour positionAt
-        this.lineOffsets = [0];
-        for (let i = 0; i < content.length; i++) {
-            if (content[i] === '\n') this.lineOffsets.push(i + 1);
-        }
-        this.lines = content.split(/\r?\n/);
-    }
-
-    getText() { return this.text; }
-
-    get lineCount() { return this.lines.length; }
-
-    lineAt(lineIndex) {
-        if (lineIndex >= this.lines.length) return { text: "" };
-        return { text: this.lines[lineIndex] };
-    }
-
-    positionAt(offset) {
-        // Recherche dichotomique pour trouver la ligne
-        let low = 0;
-        let high = this.lineOffsets.length - 1;
-        while (low <= high) {
-            const mid = Math.floor((low + high) / 2);
-            if (this.lineOffsets[mid] > offset) high = mid - 1;
-            else low = mid + 1;
-        }
-        const line = high;
-        const character = offset - this.lineOffsets[line];
-        return new vscode.Position(line, character);
-    }
-}
-
-function getAllFilesRecursive(entryPath, rootPath) {
-    const visited = new Set();
-    const filesToLint = new Set();
-
-    function traverse(filePath) {
-        const normPath = path.resolve(filePath).toLowerCase();
-        if (visited.has(normPath)) return;
-        visited.add(normPath);
-
-        if (fs.existsSync(filePath)) {
-            filesToLint.add(path.resolve(filePath));
-            const content = fs.readFileSync(filePath, 'utf8');
-
-            // Regex import simple pour trouver les dépendances
-            const importRegex = /^\s*import\s+"([^"]+)"/gm;
-            let match;
-            while ((match = importRegex.exec(content)) !== null) {
-                let importPath = match[1];
-                const currentDir = path.dirname(filePath);
-
-                if (importPath.endsWith('/*')) {
-                    // Import dossier (simplifié)
-                    const targetDir = path.resolve(currentDir, importPath.slice(0, -2));
-                    if (fs.existsSync(targetDir)) {
-                        try {
-                            fs.readdirSync(targetDir).forEach(f => {
-                                if (f.endsWith('.jmc')) traverse(path.join(targetDir, f));
-                            });
-                        } catch (e) { }
-                    }
-                } else {
-                    if (!importPath.endsWith('.jmc')) importPath += '.jmc';
-                    traverse(path.resolve(currentDir, importPath));
-                }
-            }
-        }
-    }
-
-    traverse(entryPath);
-    return [...filesToLint];
-}
 
 function isRangeIgnored(range, ignoredZones) {
     for (const zone of ignoredZones) {
@@ -104,41 +24,14 @@ function isRangeIgnored(range, ignoredZones) {
     return false;
 }
 
-function getImportedFiles(document) {
-    const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
-    const rootPath = workspaceFolder?.uri.fsPath;
-    if (!rootPath) return [];
-
-    const text = document.getText();
-    const importRegex = /^\s*import\s+"([^"]+)"/gm;
-    const importedFiles = new Set();
-    let match;
-
-    while ((match = importRegex.exec(text)) !== null) {
-        let importPath = match[1];
-        if (importPath.endsWith('/*')) {
-            // Logique dossier simplifiée : on pourrait lister le dossier ici
-            const folderRelative = importPath.slice(0, -2);
-            const folderFullPath = path.resolve(rootPath, folderRelative);
-            if (fs.existsSync(folderFullPath) && fs.statSync(folderFullPath).isDirectory()) {
-                try {
-                    const files = fs.readdirSync(folderFullPath);
-                    files.filter(f => f.endsWith('.jmc')).forEach(f => importedFiles.add(path.resolve(folderFullPath, f)));
-                } catch (e) { }
-            }
-        } else {
-            if (!importPath.endsWith('.jmc')) importPath += '.jmc';
-            const fullPath = path.resolve(rootPath, importPath);
-            if (fs.existsSync(fullPath)) importedFiles.add(fullPath);
-        }
-    }
-    importedFiles.add(path.resolve(document.uri.fsPath));
-    return [...importedFiles];
-}
-
-function isValid(word, jmcFunctions, definedFunctionsInDoc) {
-    const localNames = definedFunctionsInDoc.map(d => d.split('.').pop());
-    const allValid = [...jmcKeywords, ...mcCommands, ...jmcFunctions, ...localNames];
+function isValid(word, jmcFunctions, globalScope) {
+    const allValid = [
+        ...jmcKeywords,
+        ...mcCommands,
+        ...jmcFunctions,
+        ...Array.from(globalScope.functions.keys()),
+        ...Array.from(globalScope.classes.keys())
+    ];
     return allValid.some(cmd => cmd.toLowerCase() === word.toLowerCase())
         || word.startsWith('$')
         || word.includes('::')
@@ -157,12 +50,34 @@ function findMatchingBrace(text, startIndex) {
     return -1;
 }
 
-// --- Validateurs Spécifiques ---
+// --- Validateurs ---
 
-/**
- * 1. Validateur par Pile (Stack) pour Structures et Semicolons
- * Gère ::dict = ['a', 'b']; et execute { }
- */
+function validateImports(document, diags, ignoredZones) {
+    const text = document.getText();
+    const importRegex = /^\s*import\s+"([^"]+)"/gm;
+    // On utilise le dossier du fichier comme base
+    const docDir = path.dirname(document.uri.fsPath);
+
+    let match;
+    while ((match = importRegex.exec(text)) !== null) {
+        const importPath = match[1];
+        if (importPath.includes('*')) continue; // On ignore les wildcards pour la vérif d'existence simple
+
+        let targetPath = importPath;
+        if (!targetPath.endsWith('.jmc')) targetPath += '.jmc';
+
+        const absPath = path.resolve(docDir, targetPath);
+
+        if (!fs.existsSync(absPath)) {
+            const startPos = document.positionAt(match.index);
+            const range = new vscode.Range(startPos, startPos.translate(0, match[0].length));
+            if (!isRangeIgnored(range, ignoredZones)) {
+                diags.push(new vscode.Diagnostic(range, `File '${targetPath}' not found.`, vscode.DiagnosticSeverity.Error));
+            }
+        }
+    }
+}
+
 function validateStructureAndSemicolons(document, diags, ignoredZones) {
     const text = document.getText();
     const tokenRegex = /(\/\/.*$|#.*$|\/\*[\s\S]*?\*\/|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`[\s\S]*?`|\b(class|function|if|while|for|switch)\b|(\$|::)[\w.]+\s*(:?)=|;|,|\{|\}|\[|\])/gm;
@@ -176,42 +91,47 @@ function validateStructureAndSemicolons(document, diags, ignoredZones) {
 
         if (token.startsWith('//') || token.startsWith('#') || token.startsWith('/*') || token.startsWith('"') || token.startsWith("'") || token.startsWith('`')) continue;
 
-        // Détection contextuelle pour savoir si une accolade aura besoin d'un point-virgule
         if (token === '{') {
             let needsSemi = true;
-            // On regarde un peu avant pour voir si c'est une définition de bloc (function, if...)
-            const lookback = text.substring(Math.max(0, index - 50), index).trim();
-            if (/(class|function|if|else|for|while|switch|case|default)\s*[\w\(\)]*$/.test(lookback)) {
+            // Regarder en arrière pour voir si c'est un bloc de définition
+            const lookback = text.substring(Math.max(0, index - 100), index).trim();
+            // Regex ajustée pour attraper "function foo() " ou "if (...) " juste avant
+            if (/(class|function|if|else|for|while|switch|case|default)(\s+[\w.]+)?(\s*\(.*\))?\s*$/.test(lookback)) {
                 needsSemi = false;
             }
             stack.push({ type: 'brace', startPos: index, needsSemi });
         }
         else if (token === '[') {
-            // Une liste a toujours besoin d'un point-virgule si elle est utilisée comme valeur d'assignation
             stack.push({ type: 'bracket', startPos: index, needsSemi: true });
         }
         else if (token === '}' || token === ']') {
             if (stack.length === 0) continue;
             const block = stack.pop();
 
-            // Vérification simple de correspondance (optionnelle ici)
             if ((token === '}' && block.type !== 'brace') || (token === ']' && block.type !== 'bracket')) continue;
 
             if (block.needsSemi) {
-                // On vérifie si on est à l'intérieur d'une autre structure
                 const parent = stack.length > 0 ? stack[stack.length - 1] : null;
                 const isInsideStructure = parent && (parent.type === 'brace' || parent.type === 'bracket');
 
-                // Si on n'est pas dans une structure, on doit avoir un ;
                 if (!isInsideStructure) {
                     const remaining = text.slice(index + 1);
-                    const nextContentMatch = remaining.match(/^\s*(\S)/);
+                    // On cherche le prochain mot significatif
+                    const nextWordMatch = remaining.match(/^\s*([a-zA-Z0-9_]+|;)/);
 
-                    if (!nextContentMatch || nextContentMatch[1] !== ';') {
+                    // --- CORRECTION POUR 'with' ---
+                    // Si le prochain mot est 'with', alors ce n'est PAS la fin de l'instruction.
+                    // On ne demande pas de point-virgule ICI.
+                    if (nextWordMatch && nextWordMatch[1] === 'with') {
+                        continue; // On passe, le ; sera vérifié à la fin de la ligne 'with ...' par validateSimpleAssignments
+                    }
+                    // -----------------------------
+
+                    if (!nextWordMatch || nextWordMatch[1] !== ';') {
                         const pos = document.positionAt(index + 1);
                         const range = new vscode.Range(pos, pos.translate(0, 1));
                         if (!isRangeIgnored(range, ignoredZones)) {
-                            diags.push(new vscode.Diagnostic(range, "Missing semicolon ';' after block or list.", vscode.DiagnosticSeverity.Error));
+                            diags.push(new vscode.Diagnostic(range, "Linter: Missing semicolon ';' after block or list.", vscode.DiagnosticSeverity.Error));
                         }
                     }
                 }
@@ -220,89 +140,134 @@ function validateStructureAndSemicolons(document, diags, ignoredZones) {
     }
 }
 
-/**
- * 2. Validateur Ligne par Ligne pour Assignations Simples
- * Gère $var = 3 et commandes simples sans blocs
- */
 function validateSimpleAssignments(document, diags, ignoredZones) {
     for (let i = 0; i < document.lineCount; i++) {
         const line = document.lineAt(i);
-        const text = line.text.trim();
+        const textLine = line.text.trim();
 
-        if (!text || text.startsWith('//') || text.startsWith('#')) continue;
+        // Ignorer lignes vides ou commentaires
+        if (!textLine || textLine.startsWith('//') || textLine.startsWith('#')) continue;
 
-        // Assignations ($a = 1) ou Commandes (say 'hi') qui ne finissent pas par ; { } [ ] ,
-        if (((text.startsWith('$') || text.startsWith('::')) && text.includes('=')) ||
-            (/^[a-z]/.test(text) && !['if', 'while', 'for', 'class', 'function', 'import', 'new', 'else', 'switch', 'case', 'default'].some(k => text.startsWith(k)))) {
+        // --- FILTRES D'EXCLUSION ---
 
-            // Nettoyage commentaire fin de ligne
-            const cleanText = text.replace(/(\/\/|#).*$/, '').trim();
+        // 1. Si la ligne finit par une ouverture ou une virgule, ce n'est pas une fin d'instruction
+        if (textLine.endsWith(',') || textLine.endsWith('{') || textLine.endsWith('[')) continue;
+
+        // 2. Si c'est une propriété JSON/Objet (ex: "key": value ou key: value)
+        // Mais attention aux scores (score $var: int) ou commandes JMC avec :
+        // On exclut les assignations de variables (::var = ...) qui contiennent des :
+        if (/^[\w"']+\s*:/.test(textLine) && !textLine.includes('=')) {
+            // C'est probablement une clé d'objet, on ignore
+            continue;
+        }
+
+        // 3. Si c'est une annotation (@add) ou une fermeture de bloc seule (})
+        if (textLine.startsWith('@') || textLine === '}' || textLine === ']') continue;
+
+        // --- DETECTION D'ERREUR ---
+
+        // Cas A : Assignation de variable ($var = ... ou ::var = ...)
+        const isAssignment = (textLine.startsWith('$') || textLine.startsWith('::')) && textLine.includes('=');
+
+        // Cas B : Commande simple (commence par une lettre, n'est pas un mot clé de structure)
+        // Mots clés à ignorer car ils gèrent leurs propres blocs ou syntaxes
+        const controlKeywords = [
+            'if', 'while', 'for', 'class', 'function', 'import', 'new',
+            'else', 'switch', 'case', 'default', 'return', 'do'
+        ];
+        // On vérifie que le premier mot n'est pas un mot clé
+        const firstWord = textLine.split(/[^\w]/)[0];
+        const isCommand = /^[a-z]/.test(textLine) && !controlKeywords.includes(firstWord);
+
+        if (isAssignment || isCommand) {
+            // Nettoyage commentaire fin de ligne pour vérifier le dernier caractère réel
+            const cleanText = textLine.replace(/(\/\/|#).*$/, '').trim();
             if (!cleanText) continue;
 
             const lastChar = cleanText.slice(-1);
-            if (![';', '{', '}', '[', ']', ','].includes(lastChar)) {
-                // Vérifier si c'est une annotation @
-                if (cleanText.startsWith('@')) continue;
 
+            // Si ça ne finit pas par ; (et que ce n'est pas une fermeture ou une virgule)
+            if (![';', '{', '}', '[', ']', ','].includes(lastChar)) {
                 const range = new vscode.Range(i, line.text.length, i, line.text.length);
                 if (!isRangeIgnored(range, ignoredZones)) {
-                    diags.push(new vscode.Diagnostic(range, "Missing semicolon ';' at end of instruction.", vscode.DiagnosticSeverity.Error));
+                    diags.push(new vscode.Diagnostic(
+                        range,
+                        "Linter: Missing semicolon ';' at end of instruction.",
+                        vscode.DiagnosticSeverity.Error
+                    ));
                 }
             }
         }
     }
 }
 
-/**
- * 3. Validateur Récursif pour Commandes Inconnues
- */
-function processCodeBlock(blockText, baseLine, baseOffset, diags, jmcFunctions, definedFunctionsInDoc) {
+function processCodeBlock(blockText, baseLine, baseOffset, diags, jmcFunctions, globalScope) {
     const subBlocks = [];
     let searchText = blockText;
     let searchStartIndex = 0;
 
-    // 1. Extraire les blocs { } pour ne pas analyser leur contenu comme du texte plat
+    // 1. Masquer les blocs { }
     while (searchStartIndex < searchText.length) {
         const openBraceIndex = searchText.indexOf('{', searchStartIndex);
         if (openBraceIndex === -1) break;
-
         const closeBraceIndex = findMatchingBrace(searchText, openBraceIndex);
+
         if (closeBraceIndex !== -1) {
             const blockContent = searchText.substring(openBraceIndex + 1, closeBraceIndex);
 
-            // On calcule la nouvelle position pour la récursion
-            const precedingLines = searchText.substring(0, openBraceIndex + 1).split('\n');
-            const newBaseLine = baseLine + precedingLines.length - 1;
-            const newBaseOffset = precedingLines.length > 1 ? precedingLines[precedingLines.length - 1].length : baseOffset + precedingLines[0].length;
+            // On vérifie si c'est un bloc de commande (ex: execute run { ... })
+            // Si OUI, on veut analyser l'intérieur. Si NON (ex: json), on ignore.
+            const preceding = searchText.substring(0, openBraceIndex).trim();
+            const isCommandBlock = preceding.endsWith('run') || preceding.endsWith('=>') || preceding.endsWith('else') || preceding.match(/(function|class|if|while|for|switch)\s*[\w\(\)]*$/);
 
-            // Appel récursif
-            processCodeBlock(blockContent, newBaseLine, newBaseOffset, diags, jmcFunctions, definedFunctionsInDoc);
+            if (isCommandBlock) {
+                const precedingLines = searchText.substring(0, openBraceIndex + 1).split('\n');
+                const newBaseLine = baseLine + precedingLines.length - 1;
+                const newBaseOffset = precedingLines.length > 1 ? precedingLines[precedingLines.length - 1].length : baseOffset + precedingLines[0].length;
+                processCodeBlock(blockContent, newBaseLine, newBaseOffset, diags, jmcFunctions, globalScope);
+            }
 
-            // On masque le contenu du bloc dans le texte courant pour ne pas le re-scanner
-            // On remplace par des espaces pour garder les indices de ligne corrects
-            let mask = "";
-            for (let c of blockContent) mask += (c === '\n' ? '\n' : ' ');
-
-            // On reconstruit une string "sanitized" locale (virtuellement)
-            // Pour simplifier, on ignore juste la zone dans la boucle suivante
             subBlocks.push({ start: openBraceIndex, end: closeBraceIndex });
-
             searchStartIndex = closeBraceIndex + 1;
-        } else {
-            break;
-        }
+        } else break;
     }
 
-    // 2. Analyser le texte (en sautant les blocs identifiés)
-    const lines = blockText.split('\n');
-    let parenDepth = 0;
+    // 2. Masquer les listes [ ] (Récursif)
+    searchStartIndex = 0;
+    while (searchStartIndex < searchText.length) {
+        const openIndex = searchText.indexOf('[', searchStartIndex);
+        if (openIndex === -1) break;
+        let depth = 1;
+        let closeIndex = -1;
+        for (let i = openIndex + 1; i < searchText.length; i++) {
+            if (searchText[i] === '[') depth++;
+            else if (searchText[i] === ']') {
+                depth--;
+                if (depth === 0) { closeIndex = i; break; }
+            }
+        }
+        if (closeIndex !== -1) {
+            subBlocks.push({ start: openIndex, end: closeIndex });
+            searchStartIndex = closeIndex + 1;
+        } else break;
+    }
 
+    // 3. Masquage
+    let sanitizedText = blockText.split('');
+    for (const block of subBlocks) {
+        for (let i = block.start; i <= block.end; i++) {
+            if (sanitizedText[i] !== '\n') sanitizedText[i] = ' ';
+        }
+    }
+    const cleanText = sanitizedText.join('');
+
+    // 4. Analyse des commandes
+    const lines = cleanText.split('\n');
     for (let i = 0; i < lines.length; i++) {
         let lineText = lines[i];
         const currentLineNumber = baseLine + i;
         const currentOffset = (i === 0) ? baseOffset : 0;
 
-        // Nettoyage commentaires
         const commentIndex = Math.min(
             lineText.indexOf('//') === -1 ? Infinity : lineText.indexOf('//'),
             lineText.indexOf('#') === -1 ? Infinity : lineText.indexOf('#')
@@ -310,29 +275,29 @@ function processCodeBlock(blockText, baseLine, baseOffset, diags, jmcFunctions, 
         if (commentIndex !== Infinity) lineText = lineText.substring(0, commentIndex);
         if (!lineText.trim()) continue;
 
-        // Vérif simple des commandes (premier mot)
-        const segments = lineText.split(';'); // Gérer plusieurs commandes sur une ligne
+        const segments = lineText.split(';');
         let segOffset = 0;
 
         for (const segment of segments) {
             const trimmed = segment.trim();
             if (!trimmed) { segOffset += segment.length + 1; continue; }
 
-            // Si c'est un début de commande (pas dans une parenthèse, pas une fermeture)
-            // On fait simple: on prend le premier mot
             const firstWordMatch = trimmed.match(/^([a-zA-Z0-9_.]+)/);
             if (firstWordMatch) {
                 const word = firstWordMatch[1];
 
-                // Est-ce une commande valide ?
-                // On exclut les mots clés structurels et les variables
+                // Filtres pour éviter les faux positifs
+                if (/^\d+$/.test(word)) continue; // Chiffres
+                if (trimmed.endsWith(',')) continue; // Élément de liste/struct
+                if (word.includes(':')) continue; // Clé JSON probable
+
                 if (!['if', 'else', 'while', 'for', 'class', 'function', 'return', 'import', 'new', 'switch', 'case', 'default'].includes(word) &&
                     !word.startsWith('$') && !word.startsWith('::') && !word.startsWith('@')) {
 
-                    if (!isValid(word, jmcFunctions, definedFunctionsInDoc)) {
+                    if (!isValid(word, jmcFunctions, globalScope)) {
                         const wordIdx = lineText.indexOf(word, segOffset);
                         const range = new vscode.Range(currentLineNumber, currentOffset + wordIdx, currentLineNumber, currentOffset + wordIdx + word.length);
-                        diags.push(new vscode.Diagnostic(range, `Unknown command or function '${word}'`, vscode.DiagnosticSeverity.Error));
+                        diags.push(new vscode.Diagnostic(range, `Linter: Unknown command or function '${word}'`, vscode.DiagnosticSeverity.Error));
                     }
                 }
             }
@@ -341,49 +306,31 @@ function processCodeBlock(blockText, baseLine, baseOffset, diags, jmcFunctions, 
     }
 }
 
-// --- Fonction Principale ---
+// --- Fonction Principale (Interface pour diagnostics.js) ---
 
-/**
- * Linter Global : Retourne une Map<FilePath, Diagnostic[]>
- */
 function getLinterDiagnosticsForWorkspace(entryDocument) {
     const diagnosticsMap = new Map();
-    const rootPath = vscode.workspace.getWorkspaceFolder(entryDocument.uri).uri.fsPath;
+    // On analyse uniquement le document actif pour les performances et la pertinence
+    // Les erreurs d'import (fichier manquant) sont gérées dans validateImports
 
-    // 1. Récupérer tous les fichiers liés
-    const allFiles = getAllFilesRecursive(entryDocument.uri.fsPath, rootPath);
+    const result = lintSingleDocument(entryDocument);
+    diagnosticsMap.set(entryDocument.uri.fsPath, result.diagnostics);
 
-    // 2. Analyser chaque fichier
-    for (const filePath of allFiles) {
-        let doc;
-        // Si c'est le fichier ouvert, on prend le document VSCode (plus à jour car non-sauvegardé)
-        if (path.resolve(filePath) === path.resolve(entryDocument.uri.fsPath)) {
-            doc = entryDocument;
-        } else {
-            // Sinon on lit sur le disque
-            try {
-                const content = fs.readFileSync(filePath, 'utf8');
-                doc = new VirtualDocument(content);
-            } catch (e) { continue; }
-        }
-
-        const result = lintSingleDocument(doc);
-        if (result.diagnostics.length > 0) {
-            diagnosticsMap.set(filePath, result.diagnostics);
-        }
-    }
-
-    return { diagnosticsMap };
+    return {
+        diagnosticsMap: diagnosticsMap,
+        decorations: result.decorations,
+        // On renvoie aussi la liste simple pour le code existant qui l'utiliserait
+        diagnostics: result.diagnostics
+    };
 }
 
-// C'est votre ancienne fonction "getLinterDiagnostics", renommée pour traiter un seul doc
 function lintSingleDocument(document) {
     const jmcFunctions = Object.keys(moduleSnippets);
     const text = document.getText();
     const diags = [];
-    // On ignore les décorations pour les fichiers non ouverts (pas possible de les appliquer)
+    const decorationRanges = { decorator: [], ignoreMarker: [], ignoreContent: [] };
 
-    // 1. Zones Ignorées
+    // 1. Ignore Zones
     const ignoredZones = [];
     let searchIndex = 0;
     while ((searchIndex = text.indexOf('// @ignore(start)', searchIndex)) !== -1) {
@@ -393,21 +340,32 @@ function lintSingleDocument(document) {
             const endPos = document.positionAt(endSearchIndex);
             const ignoreZone = new vscode.Range(startPos, endPos.translate(0, 14));
             ignoredZones.push(ignoreZone);
+            decorationRanges.ignoreContent.push(ignoreZone);
+            decorationRanges.ignoreMarker.push(document.lineAt(startPos.line).range);
+            decorationRanges.ignoreMarker.push(document.lineAt(endPos.line).range);
             searchIndex = endSearchIndex + 14;
         } else break;
     }
 
-    // 2. Fonctions Inconnues (On simplifie l'analyse globale ici pour la perf)
-    const definedFunctionsInDoc = getDefinedFunctionsFromText(text.replace(/(\/\/|#).*/g, ''));
-    processCodeBlock(text, 0, 0, diags, jmcFunctions, definedFunctionsInDoc);
+    // 2. Decorators
+    const decoratorRegex = /@(\w+)/g;
+    let dMatch;
+    while ((dMatch = decoratorRegex.exec(text)) !== null) {
+        decorationRanges.decorator.push(new vscode.Range(document.positionAt(dMatch.index), document.positionAt(dMatch.index + dMatch[0].length)));
+    }
 
-    // 3. Semicolons
+    // 3. Global Scope (Fonctions & Classes)
+    const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+    const rootPath = workspaceFolder ? workspaceFolder.uri.fsPath : path.dirname(document.uri.fsPath);
+    const globalScope = getGlobalScope(rootPath, document);
+
+    // 4. Validations
+    validateImports(document, diags, ignoredZones);
     validateStructureAndSemicolons(document, diags, ignoredZones);
     validateSimpleAssignments(document, diags, ignoredZones);
+    processCodeBlock(text, 0, 0, diags, jmcFunctions, globalScope);
 
-    // 4. Storage Operators
-    // ... (Copiez votre logique storageOpRegex ici) ...
-    // Note: Pour VirtualDocument, assurez-vous que document.lineCount fonctionne (c'est le cas avec la classe ci-dessus)
+    // 5. Storage Operators
     const storageOpRegex = /(:[-+\*\/%]?=)/g;
     const storageVarRegex = /([a-zA-Z0-9_.]*::[a-zA-Z0-9_.]+)/g;
     for (let i = 0; i < document.lineCount; i++) {
@@ -435,21 +393,17 @@ function lintSingleDocument(document) {
     const finalDiags = diags.filter(d => !isRangeIgnored(d.range, ignoredZones));
     finalDiags.forEach(d => d.source = "Linter");
 
-    return { diagnostics: finalDiags };
+    return { diagnostics: finalDiags, decorations: decorationRanges };
 }
 
 function applyDecorations(editor, ranges) {
     editor.setDecorations(decoratorDecoration, ranges.decorator);
-    editor.setDecorations(fadeDecoration, ranges.fade);
-    editor.setDecorations(unusedDecoration, ranges.unused);
     editor.setDecorations(ignoreDecoration, ranges.ignoreMarker);
     editor.setDecorations(ignoreContentDecoration, ranges.ignoreContent);
 }
 
 function clearDecorations(editor) {
     editor.setDecorations(decoratorDecoration, []);
-    editor.setDecorations(fadeDecoration, []);
-    editor.setDecorations(unusedDecoration, []);
     editor.setDecorations(ignoreDecoration, []);
     editor.setDecorations(ignoreContentDecoration, []);
 }
@@ -457,6 +411,7 @@ function clearDecorations(editor) {
 module.exports = {
     setLinterSnippets,
     getLinterDiagnosticsForWorkspace,
+    getLinterDiagnostics: lintSingleDocument, // Alias pour compatibilité
     applyDecorations,
     clearDecorations
 };

@@ -24,15 +24,16 @@ function findJmcFiles(dir, rootPath) {
 function inferNbtType(value) {
     value = value.trim();
     if (value.startsWith('"') || value.startsWith("'") || value.startsWith('`')) return nbtTypes.string;
-    if (value === 'true' || value === 'false') return nbtTypes.byte;
     if (value.startsWith('{')) return nbtTypes.compound;
     if (value.startsWith('[')) return nbtTypes.list;
-    if (/^-?\d+\.\d+[dD]?$/.test(value)) return nbtTypes.double;
-    if (/^-?\d+[fF]$/.test(value) || /^-?\d+\.\d+[fF]?$/.test(value)) return nbtTypes.float;
+    if (value === 'true' || value === 'false') return nbtTypes.byte;
     if (/^-?\d+[bB]$/.test(value)) return nbtTypes.byte;
+    if (/^-?\d+[sS]$/.test(value)) return nbtTypes.short || "NBTShort";
     if (/^-?\d+[lL]$/.test(value)) return nbtTypes.long;
+    if (/^-?\d+[fF]$/.test(value) || /^-?\d+\.\d+[fF]?$/.test(value)) return nbtTypes.float;
+    if (/^-?\d+[dD]$/.test(value) || /^-?\d+\.\d+[dD]?$/.test(value)) return nbtTypes.double;
     if (/^-?\d+$/.test(value)) return nbtTypes.integer;
-    return "Any";
+    return "unknown";
 }
 
 function initProviders(context, snippets) {
@@ -167,7 +168,44 @@ function initProviders(context, snippets) {
             // B. Variables
             if (word.startsWith('$') || word.includes('::')) {
                 const markdown = new vscode.MarkdownString();
-                markdown.appendCodeblock(`var ${word}: ${word.startsWith('$') ? 'score' : 'storage'}`, 'jmc');
+
+                if (word.startsWith('$')) {
+                    markdown.appendCodeblock(`score ${word}: int`, 'jmc');
+                    markdown.appendMarkdown('\n\nJMC Variable (Scoreboard Integer)');
+                } else if (word.includes('::')) {
+                    const text = document.getText();
+                    // Regex plus robuste :
+                    // 1. Cherche ::var
+                    // 2. Cherche un = (peut y avoir des espaces/sauts de ligne avant)
+                    // 3. Capture ce qui suit jusqu'au premier point-virgule
+                    const escapedWord = word.replace(/\./g, '\\.');
+                    // Flag 's' (dotAll) n'est pas dispo en JS old school, on utilise [\s\S]
+                    const assignRegex = new RegExp(`${escapedWord}\\s*=\\s*([^;]+)`, 'm');
+
+                    const match = assignRegex.exec(text);
+
+                    let type = "unknown";
+                    if (match) {
+                        let valStart = match[1].trim();
+                        // On nettoie pour ne garder que le début de la valeur
+                        // Si c'est un objet/liste, on prend juste le premier char
+                        if (valStart.startsWith('{')) valStart = '{';
+                        else if (valStart.startsWith('[')) valStart = '[';
+                        else {
+                            // Sinon on prend le premier "mot" (jusqu'à un espace ou fin de ligne)
+                            valStart = valStart.split(/\s/)[0];
+                        }
+
+                        type = inferNbtType(valStart);
+                    }
+
+                    // Utilisation explicite de nbtTypes (au cas où inferNbtType renverrait une clé brute)
+                    // Mais inferNbtType renvoie déjà les valeurs de nbtTypes (ex: "NBTByte")
+
+                    markdown.appendCodeblock(`storage ${word}: ${type}`, 'jmc');
+                    markdown.appendMarkdown('\n\nJMC Storage Variable');
+                }
+
                 return new vscode.Hover(markdown, range);
             }
 

@@ -12,11 +12,12 @@ const nbtTypes = {
     string: "NBTString",
     integer: "NBTInt",
     float: "NBTFloat",
-    byte: "NBTByte", // Pour true/false souvent
+    byte: "NBTByte",
     compound: "NBTCompound",
     list: "NBTList",
     long: "NBTLong",
-    double: "NBTDouble"
+    double: "NBTDouble",
+    short: "NBTShort" // Ajouté
 };
 
 // Documentation complète des commandes Minecraft (1.21+)
@@ -114,5 +115,6 @@ module.exports = {
     jmcKeywords,
     functionExceptionList,
     mcCommands,
-    mcCommandDocs
+    mcCommandDocs,
+    nbtTypes
 };

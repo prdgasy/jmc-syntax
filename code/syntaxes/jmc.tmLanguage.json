@@ -9,6 +9,9 @@
 			"include": "#strings"
 		},
 		{
+			"include": "#object-keys"
+		},
+		{
 			"include": "#keywords"
 		},
 		{
@@ -22,6 +25,9 @@
 		},
 		{
 			"include": "#constants"
+		},
+		{
+			"include": "#operators"
 		}
 	],
 	"repository": {
@@ -123,6 +129,18 @@
 							"name": "variable.other.interpolated.jmc"
 						}
 					}
+				},
+				{
+					"name": "variable.language.format.jmc",
+					"match": "&<[^>]+>"
+				}
+			]
+		},
+		"object-keys": {
+			"patterns": [
+				{
+					"name": "support.type.property-name.jmc",
+					"match": "\\b([a-zA-Z_][\\w]*)(?=\\s*:)"
 				}
 			]
 		},
@@ -130,19 +148,27 @@
 			"patterns": [
 				{
 					"name": "keyword.control.jmc",
-					"match": "\\b(if|else|for|while|return|import|with)\\b"
+					"match": "\\b(if|else|for|while|return|import|with|switch|case|default|do|break|continue|try|catch|finally|throw)\\b"
 				},
 				{
 					"name": "storage.type.jmc",
-					"match": "\\b(class|function|var)\\b"
+					"match": "\\b(class|function|var|let|const)\\b"
 				},
 				{
-					"name": "support.function.builtin.jmc",
-					"match": "\\b(execute|run|say|tellraw|give|summon|tp|kill|setblock|fill|title|scoreboard)\\b"
+					"name": "keyword.operator.new.jmc",
+					"match": "\\bnew\\b"
+				},
+				{
+					"name": "support.class.builtin.jmc",
+					"match": "\\b(Player|Item|Text|Math|Timer|Recipe|Hardcode|Trigger|Predicate|RightClick|Particle|Raycast|JMC|String|Object|GUI|Advancement|Scoreboard|Bossbar|Team|Entity|Array|TextProp|TextProps|Tag)\\b"
+				},
+				{
+					"name": "support.function.builtin.mc.jmc",
+					"match": "\\b(execute|run|say|tellraw|give|summon|tp|kill|setblock|fill|title|scoreboard|data|tag|team|bossbar|advancement|attribute|ban|clear|clone|damage|datapack|debug|defaultgamemode|deop|difficulty|effect|enchant|experience|fillbiome|forceload|gamemode|gamerule|help|item|kick|list|locate|loot|me|msg|op|pardon|particle|place|playsound|publish|random|recipe|reload|ride|rotate|save-all|save-off|save-on|schedule|seed|setidletimeout|setworldspawn|spawnpoint|spectate|spreadplayers|stop|stopsound|teammsg|teleport|tell|tick|time|tm|transfer|trigger|w|weather|whitelist|worldborder|xp)\\b"
 				},
 				{
 					"name": "support.type.primitive.jmc",
-					"match": "\\b(score|any|string|boolean|selector|int|float)\\b"
+					"match": "\\b(score|storage|any|string|boolean|selector|int|float|double|long|byte|short|Text|FormattedString|List|list|JSON|compound|JSObject|Objective|Criteria|Keyword|unknown)\\b"
 				}
 			]
 		},
@@ -154,7 +180,7 @@
 				},
 				{
 					"name": "support.class.jmc",
-					"match": "\\b([a-zA-Z][\\w]*)(?=\\.)"
+					"match": "\\b([A-Z][a-zA-Z0-9_]*)(?=\\.)"
 				}
 			]
 		},
@@ -184,14 +210,17 @@
 		"variables-and-selectors": {
 			"patterns": [
 				{
-					"name": "variable.other.jmc",
-					"match": "(\\$|::)[a-zA-Z_][\\w.]*"
+					"name": "variable.other.scoreboard.jmc",
+					"match": "\\$[a-zA-Z_][\\w.]*"
+				},
+				{
+					"name": "variable.other.storage.jmc",
+					"match": "::[a-zA-Z_][\\w.]*"
 				},
 				{
 					"name": "variable.other.constant.jmc",
 					"match": "\\$\\([a-zA-Z_][\\w]*\\)"
 				},
-				
 				{
 					"name": "variable.language.decorator.jmc",
 					"match": "@[a-zA-Z]+"
@@ -205,12 +234,52 @@
 		"constants": {
 			"patterns": [
 				{
+					"name": "constant.numeric.float.jmc",
+					"match": "\\b\\d+\\.\\d+[dDfF]?\\b|\\b\\d+[dDfF]\\b"
+				},
+				{
+					"name": "constant.numeric.integer.long.jmc",
+					"match": "\\b\\d+[lL]\\b"
+				},
+				{
+					"name": "constant.numeric.integer.short.jmc",
+					"match": "\\b\\d+[sS]\\b"
+				},
+				{
+					"name": "constant.numeric.integer.byte.jmc",
+					"match": "\\b\\d+[bB]\\b"
+				},
+				{
 					"name": "constant.numeric.integer.jmc",
 					"match": "\\b\\d+\\b"
 				},
 				{
 					"name": "constant.language.boolean.jmc",
 					"match": "\\b(true|false)\\b"
+				},
+				{
+					"name": "constant.language.null.jmc",
+					"match": "\\bnull\\b"
+				}
+			]
+		},
+		"operators": {
+			"patterns": [
+				{
+					"name": "keyword.operator.assignment.jmc",
+					"match": "(:[-+\\*\\/%]?=)|(\\?\\?=)|(\\+=)|(-=)|(\\*=)|(\\/=)|(%=)|(=>)|(=)"
+				},
+				{
+					"name": "keyword.operator.comparison.jmc",
+					"match": "(==)|(!=)|(>=)|(<=)|(><)|(?<!<)<(?!<)|(?<!>)>(?!>)"
+				},
+				{
+					"name": "keyword.operator.logical.jmc",
+					"match": "(&&)|(\\|\\|)|(!)"
+				},
+				{
+					"name": "keyword.operator.arithmetic.jmc",
+					"match": "(\\+)|(-)|(\\*)|(\\/)|(%)"
 				}
 			]
 		}

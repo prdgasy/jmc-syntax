@@ -6,7 +6,16 @@ const { setLinterSnippets, getLinterDiagnosticsForWorkspace, applyDecorations, c
 
 const diagnosticCollection = vscode.languages.createDiagnosticCollection('jmc');
 const outputChannel = vscode.window.createOutputChannel("JMC Extension");
-
+let successDecorationType = vscode.window.createTextEditorDecorationType({
+    after: {
+        contentText: ' ✓ Compiled successfully',
+        color: 'rgba(100, 255, 100, 0.7)',
+        fontStyle: 'italic',
+        margin: '0 0 0 20px'
+    },
+    isWholeLine: true
+});
+let successTimeout = null;
 function initDiagnostics(context) {
     const handleDoc = (document) => {
         if (document.languageId === 'jmc') {
@@ -24,7 +33,9 @@ function initDiagnostics(context) {
 
 async function processDocument(document) {
     const editor = vscode.window.activeTextEditor;
-
+    if (editor && editor.document === document) {
+        editor.setDecorations(successDecorationType, []);
+    }
     // 1. Décorations immédiates (Linter)
     const linterResult = getLinterDiagnosticsForWorkspace(document);
     // On applique les décorations uniquement sur le fichier ouvert (car linterResult retourne une Map maintenant)
@@ -39,9 +50,11 @@ async function processDocument(document) {
 
     // 2. Si Compilation OK -> Tout vider
     if (compilerResult.success) {
-        outputChannel.appendLine("Compilation Success.");
-        diagnosticCollection.clear();
-        if (editor) clearDecorations(editor);
+        outputChannel.appendLine("Compilation Successful.");
+        if (editor && editor.document === document) {
+            clearDecorations(editor);
+            showSuccessMessage(editor); // <--- NOUVEAU
+        }
         return;
     }
 
@@ -78,6 +91,29 @@ async function processDocument(document) {
 
         diagnosticCollection.set(fileUri, mergedDiags);
     }
+}
+
+function showSuccessMessage(editor) {
+    // Si une ancienne décoration est en attente, on l'annule
+    if (successTimeout) {
+        clearTimeout(successTimeout);
+        editor.setDecorations(successDecorationType, []);
+    }
+
+    // On trouve la ligne du curseur pour afficher le message à côté
+    const position = editor.selection.active;
+    const range = new vscode.Range(position.line, 0, position.line, 0); // Range vide, l'important est la ligne
+
+    // Alternative : Afficher à la toute première ligne du fichier si on préfère
+    // const range = new vscode.Range(0, 0, 0, 0);
+
+    editor.setDecorations(successDecorationType, [range]);
+
+    // Disparition après 3 secondes
+    successTimeout = setTimeout(() => {
+        editor.setDecorations(successDecorationType, []);
+        successTimeout = null;
+    }, 6000);
 }
 
 /**
