@@ -10,7 +10,8 @@
   "icon": "icon.png",
   "main": "./extension.js",
   "activationEvents": [
-    "onLanguage:jmc"
+    "onLanguage:jmc",
+    "onCommand:jmc.compile"
   ],
   "contributes": {
     "languages": [
@@ -21,7 +22,8 @@
           "jmc"
         ],
         "extensions": [
-          ".jmc"
+          ".jmc",
+          ".hjmc"
         ],
         "configuration": "./language-configuration.json"
       }

@@ -1,18 +1,14 @@
-// extension.js
 const vscode = require('vscode');
 const fs = require('fs');
 const path = require('path');
 
-// Import des modules séparés
 const { initCommands } = require('./src/commands');
-// --- MODIFICATION ICI ---
 const { initDiagnostics, setDiagnosticsSnippets } = require('./src/diagnostics');
-// --- FIN DE LA MODIFICATION ---
 const { registerFormatter } = require('./src/formatter');
 const { initProviders } = require('./src/providers');
 
 function activate(context) {
-    console.log('JMC extension is now active.');
+    console.log('JMC extension active.');
 
     let snippets = {};
     const snippetsPath = path.join(context.extensionPath, 'snippets', 'jmc.code-snippets');
@@ -20,34 +16,19 @@ function activate(context) {
         const data = fs.readFileSync(snippetsPath, 'utf8');
         snippets = JSON.parse(data);
     } catch (e) {
-        console.error('Failed to load JMC snippets:', e);
+        console.error('Failed snippets:', e);
     }
 
-    // --- MODIFICATIONS ICI ---
-    // 1. Passer les snippets au module de diagnostic
-    setDiagnosticsSnippets(snippets);
-
-    // 2. Initialiser les modules sans passer les snippets directement à initDiagnostics
-    const commandDisposables = initCommands(context);
-    const diagnosticDisposables = initDiagnostics(context); // L'argument 'snippets' est retiré
-    // --- FIN DES MODIFICATIONS ---
-    const formatterDisposable = registerFormatter();
-    const providerDisposables = initProviders(context, snippets);
+    setDiagnosticsSnippets(snippets); // Envoyer les snippets au linter via le diagnostic controller
 
     context.subscriptions.push(
-        ...commandDisposables,
-        ...diagnosticDisposables,
-        formatterDisposable,
-        ...providerDisposables
+        ...initCommands(context),
+        ...initDiagnostics(context),
+        registerFormatter(),
+        ...initProviders(context, snippets)
     );
-
-    // Le premier déclenchement se fait maintenant à l'intérieur de initDiagnostics,
-    // donc plus besoin de le faire ici.
 }
 
 function deactivate() { }
 
-module.exports = {
-    activate,
-    deactivate
-};
+module.exports = { activate, deactivate };
