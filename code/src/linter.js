@@ -201,7 +201,7 @@ function validateSimpleAssignments(document, diags, ignoredZones) {
     }
 }
 
-function processCodeBlock(blockText, baseLine, baseOffset, diags, jmcFunctions, globalScope) {
+function processCodeBlock(blockText, baseLine, baseOffset, diags, jmcFunctions, globalScope, isHeaderFile) {
     const subBlocks = [];
     let searchText = blockText;
     let searchStartIndex = 0;
@@ -265,6 +265,7 @@ function processCodeBlock(blockText, baseLine, baseOffset, diags, jmcFunctions, 
     const lines = cleanText.split('\n');
     for (let i = 0; i < lines.length; i++) {
         let lineText = lines[i];
+        if (lineText.startsWith('#')) continue;
         const currentLineNumber = baseLine + i;
         const currentOffset = (i === 0) ? baseOffset : 0;
 
@@ -329,6 +330,7 @@ function lintSingleDocument(document) {
     const text = document.getText();
     const diags = [];
     const decorationRanges = { decorator: [], ignoreMarker: [], ignoreContent: [] };
+    const isHeaderFile = document.fileName.endsWith('.hjmc');
 
     // 1. Ignore Zones
     const ignoredZones = [];
@@ -358,12 +360,16 @@ function lintSingleDocument(document) {
     const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
     const rootPath = workspaceFolder ? workspaceFolder.uri.fsPath : path.dirname(document.uri.fsPath);
     const globalScope = getGlobalScope(rootPath, document);
-
+    // 6. Semicolons -> UNIQUEMENT SI PAS HJMC
+    if (!isHeaderFile) {
+        validateStructureAndSemicolons(document, diags, ignoredZones);
+        validateSimpleAssignments(document, diags, ignoredZones);
+    }
     // 4. Validations
     validateImports(document, diags, ignoredZones);
     validateStructureAndSemicolons(document, diags, ignoredZones);
     validateSimpleAssignments(document, diags, ignoredZones);
-    processCodeBlock(text, 0, 0, diags, jmcFunctions, globalScope);
+    processCodeBlock(text, 0, 0, diags, jmcFunctions, globalScope, isHeaderFile);
 
     // 5. Storage Operators
     const storageOpRegex = /(:[-+\*\/%]?=)/g;
@@ -389,6 +395,8 @@ function lintSingleDocument(document) {
             }
         }
     }
+
+
 
     const finalDiags = diags.filter(d => !isRangeIgnored(d.range, ignoredZones));
     finalDiags.forEach(d => d.source = "Linter");

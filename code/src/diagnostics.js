@@ -15,6 +15,17 @@ let successDecorationType = vscode.window.createTextEditorDecorationType({
     },
     isWholeLine: true
 });
+
+const failedDecorationType = vscode.window.createTextEditorDecorationType({
+    after: {
+        contentText: ' ✘ Compilation Failed',
+        color: 'rgba(255, 100, 100, 0.7)', // Rouge
+        fontStyle: 'italic',
+        margin: '0 0 0 20px'
+    },
+    isWholeLine: true
+});
+
 let successTimeout = null;
 function initDiagnostics(context) {
     const handleDoc = (document) => {
@@ -33,8 +44,11 @@ function initDiagnostics(context) {
 
 async function processDocument(document) {
     const editor = vscode.window.activeTextEditor;
+
+    // Nettoyer les deux types de messages au début
     if (editor && editor.document === document) {
         editor.setDecorations(successDecorationType, []);
+        editor.setDecorations(failedDecorationType, []);
     }
     // 1. Décorations immédiates (Linter)
     const linterResult = getLinterDiagnosticsForWorkspace(document);
@@ -48,18 +62,22 @@ async function processDocument(document) {
     outputChannel.appendLine(`Compiling...`);
     const compilerResult = await runCompiler(document);
 
-    // 2. Si Compilation OK -> Tout vider
     if (compilerResult.success) {
         outputChannel.appendLine("Compilation Successful.");
+        diagnosticCollection.clear();
         if (editor && editor.document === document) {
-            // clearDecorations(editor);
-            diagnosticCollection.clear();
-            showSuccessMessage(editor); // <--- NOUVEAU
+            clearDecorations(editor); // Si vous voulez enlever les warnings linter
+            showSuccessMessage(editor);
         }
         return;
     }
 
     outputChannel.appendLine("Compilation Failed.");
+
+    // CAS ECHEC : Afficher le message rouge
+    if (editor && editor.document === document) {
+        showFailedMessage(editor);
+    }
 
     // 3. Propagation des erreurs sur les lignes d'import
     // On ajoute des erreurs virtuelles sur le fichier courant si ses dépendances ont échoué
@@ -116,7 +134,11 @@ function showSuccessMessage(editor) {
         successTimeout = null;
     }, 6000);
 }
-
+function showFailedMessage(editor) {
+    const position = editor.selection.active;
+    const range = new vscode.Range(position.line, 0, position.line, 0);
+    editor.setDecorations(failedDecorationType, [range]);
+}
 /**
  * Scanne le document actuel pour trouver les imports qui pointent vers des fichiers en erreur
  */

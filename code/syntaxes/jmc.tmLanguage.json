@@ -3,6 +3,9 @@
 	"scopeName": "source.jmc",
 	"patterns": [
 		{
+			"include": "#preprocessor"
+		},
+		{
 			"include": "#comments"
 		},
 		{
@@ -169,6 +172,14 @@
 				{
 					"name": "support.type.primitive.jmc",
 					"match": "\\b(score|storage|any|string|boolean|selector|int|float|double|long|byte|short|Text|FormattedString|List|list|JSON|compound|JSObject|Objective|Criteria|Keyword|unknown)\\b"
+				}
+			]
+		},
+		"preprocessor": {
+			"patterns": [
+				{
+					"match": "^\\s*(#(?:define|deepdefine|enum|bind|env|credit|include|command|del|override|uninstall|static|nometa|forcebst|show_private_command))\\b",
+					"name": "keyword.control.directive.jmc"
 				}
 			]
 		},

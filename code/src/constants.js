@@ -111,7 +111,26 @@ const mcCommandDocs = {
 // Liste simple des noms de commandes pour la validation
 const mcCommands = Object.keys(mcCommandDocs);
 
+const hjmcDirectives = {
+    "#define": "Replace a keyword with other token(s). Example: `#define LOOP __tick__`",
+    "#deepdefine": "Similar to #define but replaces tokens inside other tokens (like parentheses). Used with EVAL.",
+    "#bind": "Special macro where the compiler generates the result. Binders: __UUID__, __namespace__, EVAL, __namehash16__, NOT.",
+    "#env": "Environment variable based on compile flags.",
+    "#credit": "Add comment to the end of every generated .mcfunction file.",
+    "#include": "Add other header file.",
+    "#command": "Make JMC recognize non-vanilla command.",
+    "#del": "Make JMC ignore command when searching for missing semicolons.",
+    "#override": "Grant JMC authority to fully control/delete a namespace.",
+    "#uninstall": "Modify uninstall function to remove JMC traces.",
+    "#static": "Make compiler ignore a folder in output.",
+    "#nometa": "Make pack.mcmeta static.",
+    "#enum": "Automatically define elements with restricted range of values.",
+    "#forcebst": "Force Binary Search Tree algorithm for switch case.",
+    "#show_private_command": "Add comments containing content where private function is called."
+};
+
 module.exports = {
+    hjmcDirectives,
     jmcKeywords,
     functionExceptionList,
     mcCommands,

@@ -22,7 +22,8 @@
           "jmc"
         ],
         "extensions": [
-          ".jmc"
+          ".jmc",
+          ".hjmc"
         ],
         "configuration": "./language-configuration.json"
       }

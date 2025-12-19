@@ -75,7 +75,7 @@ function parseCompilerOutput(output, rootPath) {
     const lines = output.split(/\r?\n/);
     const map = new Map(); // Map<string, Diagnostic[]>
 
-    const locationRegex = /^\s*In\s+(.+?):(\d+):(\d+)/;
+    const locationRegex = /^\s*In\s+(.+?):(\d+)(?::(\d+))?/;
     const caretRegex = /^(\s*)(\^+)/;
     const codeLineRegex = /^\s*\d+\s*\|/;
 
@@ -96,18 +96,18 @@ function parseCompilerOutput(output, rootPath) {
     };
 
     for (const line of lines) {
+
         const locMatch = line.match(locationRegex);
         if (locMatch) {
             pushDiag();
-
-            // On récupère le chemin du fichier indiqué par l'erreur
-            // Si c'est "imported.jmc", on résout son chemin absolu
             currentFile = path.resolve(rootPath, locMatch[1].trim());
+            const lineNum = parseInt(locMatch[2]) - 1;
+            // Si pas de colonne, on met 0 par défaut
+            const colNum = locMatch[3] ? parseInt(locMatch[3]) - 1 : 0;
 
-            const errLine = parseInt(locMatch[2]) - 1;
-            const errCol = parseInt(locMatch[3]) - 1;
-
-            currentRange = new vscode.Range(errLine, errCol, errLine, errCol + 1);
+            // Si pas de colonne, on souligne toute la ligne (longueur arbitraire 999 ou fin de ligne)
+            const length = locMatch[3] ? 1 : 999;
+            currentRange = new vscode.Range(lineNum, colNum, lineNum, colNum + length);
             continue;
         }
 
