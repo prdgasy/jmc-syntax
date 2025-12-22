@@ -25,7 +25,11 @@
           ".jmc",
           ".hjmc"
         ],
-        "configuration": "./language-configuration.json"
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icons/icon.svg",
+          "dark": "./icons/icon.svg"
+        }
       }
     ],
     "grammars": [

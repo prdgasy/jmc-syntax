@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <!-- Fond carré (Style TS/JS) -->
+  <rect width="128" height="128" fill="#7C4DFF"/>
+  
+  <!-- Texte JMC positionné en bas à droite comme TS -->
+  <!-- "JMC" étant plus large que "TS", on le cale bien pour qu'il prenne l'espace -->
+  <text 
+    x="118" 
+    y="113" 
+    font-family="Segoe UI, Helvetica, Arial, sans-serif" 
+    font-weight="bold" 
+    font-size="58" 
+    text-anchor="end" 
+    fill="#FFFFFF"
+    letter-spacing="-2"
+  >JMC</text>
+</svg>

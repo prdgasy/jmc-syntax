@@ -178,8 +178,32 @@
 		"preprocessor": {
 			"patterns": [
 				{
-					"match": "^\\s*(#(?:define|deepdefine|enum|bind|env|credit|include|command|del|override|uninstall|static|nometa|forcebst|show_private_command))\\b",
+					"match": "^\\s*(#(?:define|deepdefine|enum))\\s+([a-zA-Z_][\\w]*)",
+					"captures": {
+						"1": {
+							"name": "keyword.control.directive.jmc"
+						},
+						"2": {
+							"name": "variable.other.constant.jmc"
+						}
+					}
+				},
+				{
+					"match": "^\\s*(#(?:bind|env|credit|include|command|del|override|uninstall|static|nometa|forcebst|show_private_command))\\b",
 					"name": "keyword.control.directive.jmc"
+				},
+				{
+					"begin": "(?<=\\w)\\(",
+					"end": "\\)",
+					"patterns": [
+						{
+							"match": "[a-zA-Z_][\\w]*",
+							"name": "variable.parameter.jmc"
+						},
+						{
+							"include": "#constants"
+						}
+					]
 				}
 			]
 		},
