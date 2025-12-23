@@ -130,6 +130,22 @@ function initProviders(context, snippets) {
                 scope.classes.forEach((info, name) => {
                     items.push(new vscode.CompletionItem(name, vscode.CompletionItemKind.Class));
                 });
+                if (scope.scoreboards) {
+                    scope.scoreboards.forEach((info, name) => {
+                        const item = new vscode.CompletionItem(name, vscode.CompletionItemKind.Variable);
+                        item.detail = `Scoreboard Objective (${info.criteria})`;
+
+                        const md = new vscode.MarkdownString();
+                        md.appendCodeblock(`objective ${name}`, 'jmc');
+                        md.appendMarkdown(`\n\n**Criteria**: \`${info.criteria}\``);
+                        if (info.displayName) {
+                            md.appendMarkdown(`\n**Display**: ${info.displayName}`);
+                        }
+                        item.documentation = md;
+
+                        items.push(item);
+                    });
+                }
             }
             return items;
         }
@@ -206,10 +222,28 @@ function initProviders(context, snippets) {
                 const sig = getSignatureFromSnippet(snippets[word].body);
                 return new vscode.Hover(new vscode.MarkdownString().appendCodeblock(sig, 'jmc').appendMarkdown(`\n\n${snippets[word].description}`), range);
             }
-
+            // --- NOUVEAU : Scoreboards ---
+            // On gère le cas "obj:.score" -> on veut hover sur "obj"
+            let objectiveName = word;
+            if (word.includes(':') && !word.startsWith('::')) {
+                objectiveName = word.split(':')[0]; // "myobj:.score" -> "myobj"
+            }
             const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
             if (workspaceFolder) {
                 const scope = getGlobalScope(workspaceFolder.uri.fsPath, document);
+
+                if (scope.scoreboards && scope.scoreboards.has(objectiveName)) {
+                    const info = scope.scoreboards.get(objectiveName);
+                    const md = new vscode.MarkdownString();
+                    // Affichage type signature fonctionnelle
+                    md.appendCodeblock(`Objective ${objectiveName}: ${info.criteria}`, 'jmc');
+                    if (info.displayName) {
+                        md.appendCodeblock(` => "${info.displayName}"`, 'jmc');
+                    }
+                    md.appendMarkdown(`\n\nDefined in \`${vscode.workspace.asRelativePath(info.filePath)}\` at line ${info.line + 1}`);
+                    return new vscode.Hover(md, range);
+                }
+
                 if (scope.functions.has(word)) {
                     const info = scope.functions.get(word);
                     return new vscode.Hover(new vscode.MarkdownString(`User Function **${word}**\n\nDefined in \`${vscode.workspace.asRelativePath(info.filePath)}\``), range);
@@ -242,13 +276,24 @@ function initProviders(context, snippets) {
     // --- 5. Definition Provider ---
     const definitionProvider = vscode.languages.registerDefinitionProvider('jmc', {
         async provideDefinition(document, position) {
-            const wordRange = document.getWordRangeAtPosition(position, /[#A-Za-z0-9_.]+/);
+            const wordRange = document.getWordRangeAtPosition(position, /[#A-Za-z0-9_.:]+/);
             if (!wordRange) return null;
-            const word = document.getText(wordRange);
+            let word = document.getText(wordRange);
+
+
+            // Gestion "obj:.score"
+            if (word.includes(':') && !word.startsWith('::')) {
+                word = word.split(':')[0];
+            }
 
             const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
             if (workspaceFolder) {
                 const scope = getGlobalScope(workspaceFolder.uri.fsPath, document);
+                // --- NOUVEAU : Scoreboards ---
+                if (scope.scoreboards && scope.scoreboards.has(word)) {
+                    const info = scope.scoreboards.get(word);
+                    return new vscode.Location(vscode.Uri.file(info.filePath), new vscode.Position(info.line, 0));
+                }
                 if (scope.functions.has(word)) {
                     const info = scope.functions.get(word);
                     return new vscode.Location(vscode.Uri.file(info.filePath), new vscode.Position(info.line, 0));
@@ -287,6 +332,7 @@ function initProviders(context, snippets) {
     }, ':');
 
     return [
+
         importCompletionProvider,
         snippetCompletionProvider,
         signatureProvider,

@@ -6,6 +6,7 @@ const functionRegex = /function\s+([a-zA-Z0-9_.]*)\s*\(/g;
 const classRegex = /class\s+([a-zA-Z0-9_]*)/g;
 const variableRegex = /(\$|::)([a-zA-Z0-9_.]*)/g;
 const importRegex = /^\s*import\s+"([^"]+)"/gm;
+const scoreboardRegex = /Scoreboard\.add\s*\(\s*([a-zA-Z0-9_]+)\s*(?:,\s*([a-zA-Z0-9_.]+))?\s*(?:,\s*(?:"([^"]*)"|'([^']*)'))?\s*\)/g;
 
 // --- Fonctions existantes conservées pour le Linter ---
 
@@ -95,7 +96,7 @@ function getGlobalScope(rootPath, currentDoc) {
     const functions = new Map(); // Key: name, Value: { filePath, line, doc }
     const classes = new Map();
     const variables = new Set();
-
+    const scoreboards = new Map();
     // Fonction de parcours
     function traverse(filePath, contentOverride = null) {
         const normPath = path.resolve(filePath).toLowerCase();
@@ -115,8 +116,31 @@ function getGlobalScope(rootPath, currentDoc) {
 
         const cleanContent = content.replace(/(\/\/|#).*/g, '');
 
-        // 1. Extraire Fonctions
+
+        // --- EXTRACTION SCOREBOARDS ---
         let match;
+        // Reset regex index
+        scoreboardRegex.lastIndex = 0;
+
+        // On cherche: Scoreboard.add(nom, criteria, "display")
+        while ((match = scoreboardRegex.exec(cleanContent)) !== null) {
+            const name = match[1];
+            // Groupe 2: criteria (si présent, sinon dummy par défaut)
+            const criteria = match[2] || "dummy";
+            // Groupe 3 ou 4: displayName (si présent, avec " ou ')
+            const displayName = match[3] || match[4] || "";
+
+            const linesUpTo = content.substring(0, match.index).split('\n');
+            const lineNum = linesUpTo.length - 1;
+
+            scoreboards.set(name, {
+                name,
+                criteria,
+                displayName,
+                filePath,
+                line: lineNum
+            });
+        }
         // On reset le regex global avant usage
         functionRegex.lastIndex = 0;
         while ((match = functionRegex.exec(cleanContent)) !== null) {
@@ -191,7 +215,7 @@ function getGlobalScope(rootPath, currentDoc) {
         traverse(path.join(rootPath, 'main.jmc'));
     }
 
-    return { functions, classes, variables };
+    return { scoreboards, functions, classes, variables };
 }
 
 // --- Helpers pour Snippets ---
@@ -213,6 +237,7 @@ function getParamsFromSignature(signature) {
 }
 
 module.exports = {
+
     getDefinedFunctionsFromText,
     getAllCallIdentifiers,
     extractVariables,

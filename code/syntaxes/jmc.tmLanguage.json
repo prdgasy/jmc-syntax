@@ -182,7 +182,7 @@
 				},
 				{
 					"name": "support.type.primitive.jmc",
-					"match": "\\b(score|storage|any|string|boolean|selector|int|float|double|long|byte|short|Text|FormattedString|List|list|JSON|compound|JSObject|Objective|Criteria|Keyword|unknown)\\b"
+					"match": "\\b(score|storage|any|string|boolean|int|float|double|long|byte|short|Text|FormattedString|List|list|JSON|compound|JSObject|Objective|Criteria|Keyword|unknown|Any)\\b"
 				}
 			]
 		},
@@ -200,6 +200,17 @@
 		},
 		"functions": {
 			"patterns": [
+				{
+					"match": "(Scoreboard\\.add)\\s*\\(\\s*([a-zA-Z0-9_]+)",
+					"captures": {
+						"1": {
+							"name": "support.function.builtin.mc.jmc"
+						},
+						"2": {
+							"name": "variable.other.scoreboard.jmc"
+						}
+					}
+				},
 				{
 					"begin": "(?i)\\b(function)\\s+",
 					"beginCaptures": {
@@ -241,6 +252,10 @@
 		},
 		"variables-and-selectors": {
 			"patterns": [
+				{
+					"match": "\\b([a-zA-Z0-9_]+)(?=:\\.)",
+					"name": "variable.other.scoreboard.jmc"
+				},
 				{
 					"name": "variable.other.scoreboard.jmc",
 					"match": "\\$[a-zA-Z_][\\w.]*"
