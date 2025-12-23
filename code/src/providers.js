@@ -60,20 +60,45 @@ function initProviders(context, snippets) {
     const importCompletionProvider = vscode.languages.registerCompletionItemProvider('jmc', {
         async provideCompletionItems(document, position) {
             const linePrefix = document.lineAt(position).text.substring(0, position.character);
-            // Correction de la condition logique
+            // Vérification simple du contexte d'import
             if (!linePrefix.endsWith('import "') && !linePrefix.endsWith("import '")) return undefined;
 
-            const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
-            if (!workspaceFolder) return [];
+            // Dossier contenant le fichier actuel
+            const currentDir = path.dirname(document.uri.fsPath);
 
-            const rootPath = workspaceFolder.uri.fsPath;
-            const currentFile = path.relative(rootPath, document.uri.fsPath).replace(/\\/g, '/');
-            const allFiles = findJmcFiles(rootPath, rootPath);
-            const suggestions = allFiles.filter(f => f !== currentFile);
+            if (!fs.existsSync(currentDir)) return [];
 
-            return suggestions.map(f => new vscode.CompletionItem(f.slice(0, -4), vscode.CompletionItemKind.File));
+            const items = [];
+            try {
+                // On scanne le dossier du fichier actuel
+                const files = fs.readdirSync(currentDir, { withFileTypes: true });
+
+                for (const file of files) {
+                    // On ne suggère pas le fichier lui-même
+                    if (path.resolve(currentDir, file.name) === document.uri.fsPath) continue;
+
+                    if (file.isDirectory()) {
+                        // Suggérer les dossiers
+                        const item = new vscode.CompletionItem(file.name + '/', vscode.CompletionItemKind.Folder);
+                        // Commande pour ré-ouvrir l'autocomplétion après avoir sélectionné un dossier
+                        item.command = { command: 'editor.action.triggerSuggest', title: 'Re-trigger suggestions' };
+                        items.push(item);
+                    }
+                    else if (file.name.endsWith('.jmc')) {
+                        // Suggérer les fichiers .jmc (sans l'extension)
+                        const nameNoExt = file.name.slice(0, -4);
+                        const item = new vscode.CompletionItem(nameNoExt, vscode.CompletionItemKind.File);
+                        item.detail = 'JMC File';
+                        items.push(item);
+                    }
+                }
+            } catch (e) {
+                console.error("Error reading directory for import completion:", e);
+            }
+
+            return items;
         }
-    }, '"', "'");
+    }, '"', "'", "/");
 
     // --- 2. Autocompletion GENERALE ---
     const snippetCompletionProvider = vscode.languages.registerCompletionItemProvider('jmc', {

@@ -3,13 +3,13 @@
 	"scopeName": "source.jmc",
 	"patterns": [
 		{
-			"include": "#preprocessor"
-		},
-		{
 			"include": "#comments"
 		},
 		{
 			"include": "#strings"
+		},
+		{
+			"include": "#specific-decorators"
 		},
 		{
 			"include": "#object-keys"
@@ -31,6 +31,9 @@
 		},
 		{
 			"include": "#operators"
+		},
+		{
+			"include": "#preprocessor"
 		}
 	],
 	"repository": {
@@ -139,6 +142,14 @@
 				}
 			]
 		},
+		"specific-decorators": {
+			"patterns": [
+				{
+					"name": "entity.name.type.class.jmc",
+					"match": "@(lazy|add|root|if)\\b"
+				}
+			]
+		},
 		"object-keys": {
 			"patterns": [
 				{
@@ -175,38 +186,6 @@
 				}
 			]
 		},
-		"preprocessor": {
-			"patterns": [
-				{
-					"match": "^\\s*(#(?:define|deepdefine|enum))\\s+([a-zA-Z_][\\w]*)",
-					"captures": {
-						"1": {
-							"name": "keyword.control.directive.jmc"
-						},
-						"2": {
-							"name": "variable.other.constant.jmc"
-						}
-					}
-				},
-				{
-					"match": "^\\s*(#(?:bind|env|credit|include|command|del|override|uninstall|static|nometa|forcebst|show_private_command))\\b",
-					"name": "keyword.control.directive.jmc"
-				},
-				{
-					"begin": "(?<=\\w)\\(",
-					"end": "\\)",
-					"patterns": [
-						{
-							"match": "[a-zA-Z_][\\w]*",
-							"name": "variable.parameter.jmc"
-						},
-						{
-							"include": "#constants"
-						}
-					]
-				}
-			]
-		},
 		"classes": {
 			"patterns": [
 				{
@@ -237,8 +216,26 @@
 					]
 				},
 				{
-					"name": "entity.name.function.jmc",
+					"name": "entity.name.function.call.jmc",
 					"match": "\\b([a-zA-Z_][\\w.]*?)(?=\\s*\\()"
+				},
+				{
+					"begin": "\\(",
+					"end": "\\)",
+					"patterns": [
+						{
+							"include": "#strings"
+						},
+						{
+							"include": "#variables-and-selectors"
+						},
+						{
+							"include": "#constants"
+						},
+						{
+							"include": "#object-keys"
+						}
+					]
 				}
 			]
 		},
@@ -262,7 +259,7 @@
 				},
 				{
 					"name": "variable.language.selector.jmc",
-					"match": "@[asepr](?=\\[|$|\\s)"
+					"match": "@[asepr](?=\\[|$|\\s|,|\\))"
 				}
 			]
 		},
@@ -315,6 +312,38 @@
 				{
 					"name": "keyword.operator.arithmetic.jmc",
 					"match": "(\\+)|(-)|(\\*)|(\\/)|(%)"
+				}
+			]
+		},
+		"preprocessor": {
+			"patterns": [
+				{
+					"match": "^\\s*(#(?:define|deepdefine|enum))\\s+([a-zA-Z_][\\w]*)",
+					"captures": {
+						"1": {
+							"name": "keyword.control.directive.jmc"
+						},
+						"2": {
+							"name": "variable.other.constant.jmc"
+						}
+					}
+				},
+				{
+					"match": "^\\s*(#(?:bind|env|credit|include|command|del|override|uninstall|static|nometa|forcebst|show_private_command))\\b",
+					"name": "keyword.control.directive.jmc"
+				},
+				{
+					"begin": "(?<=\\w)\\(",
+					"end": "\\)",
+					"patterns": [
+						{
+							"match": "[a-zA-Z_][\\w]*",
+							"name": "variable.parameter.jmc"
+						},
+						{
+							"include": "#constants"
+						}
+					]
 				}
 			]
 		}
