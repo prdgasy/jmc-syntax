@@ -1,0 +1,7 @@
+{
+    "namespace": "a",
+    "description": "",
+    "pack_format": "88",
+    "target": "a.jmc",
+    "output": "."
+}

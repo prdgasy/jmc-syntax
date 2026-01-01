@@ -3,6 +3,9 @@
 	"scopeName": "source.jmc",
 	"patterns": [
 		{
+			"include": "#preprocessor"
+		},
+		{
 			"include": "#comments"
 		},
 		{
@@ -31,9 +34,6 @@
 		},
 		{
 			"include": "#operators"
-		},
-		{
-			"include": "#preprocessor"
 		}
 	],
 	"repository": {

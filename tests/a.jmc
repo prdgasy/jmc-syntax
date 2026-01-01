@@ -1,0 +1,6 @@
+say 'hello';
+
+Scoreboard.add(isscore, dummy);
+iscsore:@s += 2;
+
+::temp = [ 4s, 2s, 1s ];
