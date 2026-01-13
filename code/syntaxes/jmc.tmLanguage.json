@@ -3,37 +3,40 @@
 	"scopeName": "source.jmc",
 	"patterns": [
 		{
-			"include": "#preprocessor"
-		},
-		{
 			"include": "#comments"
 		},
 		{
 			"include": "#strings"
 		},
 		{
-			"include": "#specific-decorators"
+			"include": "#preprocessor"
 		},
 		{
-			"include": "#object-keys"
+			"include": "#specific-decorators"
 		},
 		{
 			"include": "#keywords"
 		},
 		{
-			"include": "#classes"
-		},
-		{
-			"include": "#functions"
-		},
-		{
-			"include": "#variables-and-selectors"
+			"include": "#object-keys"
 		},
 		{
 			"include": "#constants"
 		},
 		{
+			"include": "#functions"
+		},
+		{
+			"include": "#classes"
+		},
+		{
+			"include": "#variables-and-selectors"
+		},
+		{
 			"include": "#operators"
+		},
+		{
+			"include": "#blocks"
 		}
 	],
 	"repository": {
@@ -42,10 +45,6 @@
 				{
 					"name": "comment.line.double-slash.jmc",
 					"match": "//.*$"
-				},
-				{
-					"name": "comment.line.number-sign.jmc",
-					"match": "#.*$"
 				},
 				{
 					"name": "comment.block.jmc",
@@ -142,10 +141,41 @@
 				}
 			]
 		},
+		"blocks": {
+			"patterns": [
+				{
+					"begin": "\\(",
+					"end": "\\)",
+					"patterns": [
+						{
+							"include": "$self"
+						}
+					]
+				},
+				{
+					"begin": "\\[",
+					"end": "\\]",
+					"patterns": [
+						{
+							"include": "$self"
+						}
+					]
+				},
+				{
+					"begin": "\\{",
+					"end": "\\}",
+					"patterns": [
+						{
+							"include": "$self"
+						}
+					]
+				}
+			]
+		},
 		"specific-decorators": {
 			"patterns": [
 				{
-					"name": "entity.name.type.class.jmc",
+					"name": "entity.name.tag.decorator.jmc",
 					"match": "@(lazy|add|root|if)\\b"
 				}
 			]
@@ -182,7 +212,7 @@
 				},
 				{
 					"name": "support.type.primitive.jmc",
-					"match": "\\b(score|storage|any|string|boolean|int|float|double|long|byte|short|Text|FormattedString|List|list|JSON|compound|JSObject|Objective|Criteria|Keyword|unknown|Any)\\b"
+					"match": "\\b(score|storage|any|string|boolean|selector|int|float|double|long|byte|short|Text|FormattedString|List|list|JSON|compound|JSObject|Objective|Criteria|Keyword|unknown)\\b"
 				}
 			]
 		},
@@ -201,17 +231,6 @@
 		"functions": {
 			"patterns": [
 				{
-					"match": "(Scoreboard\\.add)\\s*\\(\\s*([a-zA-Z0-9_]+)",
-					"captures": {
-						"1": {
-							"name": "support.function.builtin.mc.jmc"
-						},
-						"2": {
-							"name": "variable.other.scoreboard.jmc"
-						}
-					}
-				},
-				{
 					"begin": "(?i)\\b(function)\\s+",
 					"beginCaptures": {
 						"1": {
@@ -227,35 +246,13 @@
 					]
 				},
 				{
-					"name": "entity.name.function.call.jmc",
-					"match": "\\b([a-zA-Z_][\\w.]*?)(?=\\s*\\()"
-				},
-				{
-					"begin": "\\(",
-					"end": "\\)",
-					"patterns": [
-						{
-							"include": "#strings"
-						},
-						{
-							"include": "#variables-and-selectors"
-						},
-						{
-							"include": "#constants"
-						},
-						{
-							"include": "#object-keys"
-						}
-					]
+					"match": "\\b([a-zA-Z_][\\w.]*?)(?=\\s*\\()",
+					"name": "entity.name.function.call.jmc"
 				}
 			]
 		},
 		"variables-and-selectors": {
 			"patterns": [
-				{
-					"match": "\\b([a-zA-Z0-9_]+)(?=:\\.)",
-					"name": "variable.other.scoreboard.jmc"
-				},
 				{
 					"name": "variable.other.scoreboard.jmc",
 					"match": "\\$[a-zA-Z_][\\w.]*"
@@ -346,19 +343,6 @@
 				{
 					"match": "^\\s*(#(?:bind|env|credit|include|command|del|override|uninstall|static|nometa|forcebst|show_private_command))\\b",
 					"name": "keyword.control.directive.jmc"
-				},
-				{
-					"begin": "(?<=\\w)\\(",
-					"end": "\\)",
-					"patterns": [
-						{
-							"match": "[a-zA-Z_][\\w]*",
-							"name": "variable.parameter.jmc"
-						},
-						{
-							"include": "#constants"
-						}
-					]
 				}
 			]
 		}

@@ -72,7 +72,7 @@ function validateImports(document, diags, ignoredZones) {
             const startPos = document.positionAt(match.index);
             const range = new vscode.Range(startPos, startPos.translate(0, match[0].length));
             if (!isRangeIgnored(range, ignoredZones)) {
-                diags.push(new vscode.Diagnostic(range, `File '${targetPath}' not found.`, vscode.DiagnosticSeverity.Error));
+                diags.push(new vscode.Diagnostic(range, `File '${targetPath}' not found.`, vscode.DiagnosticSeverity.Warning));
             }
         }
     }
@@ -131,7 +131,7 @@ function validateStructureAndSemicolons(document, diags, ignoredZones) {
                         const pos = document.positionAt(index + 1);
                         const range = new vscode.Range(pos, pos.translate(0, 1));
                         if (!isRangeIgnored(range, ignoredZones)) {
-                            diags.push(new vscode.Diagnostic(range, "Linter: Missing semicolon ';' after block or list.", vscode.DiagnosticSeverity.Error));
+                            diags.push(new vscode.Diagnostic(range, "Linter: Missing semicolon ';' after block or list.", vscode.DiagnosticSeverity.Warning));
                         }
                     }
                 }
@@ -193,7 +193,7 @@ function validateSimpleAssignments(document, diags, ignoredZones) {
                     diags.push(new vscode.Diagnostic(
                         range,
                         "Linter: Missing semicolon ';' at end of instruction.",
-                        vscode.DiagnosticSeverity.Error
+                        vscode.DiagnosticSeverity.Warning
                     ));
                 }
             }
@@ -298,7 +298,7 @@ function processCodeBlock(blockText, baseLine, baseOffset, diags, jmcFunctions, 
                     if (!isValid(word, jmcFunctions, globalScope)) {
                         const wordIdx = lineText.indexOf(word, segOffset);
                         const range = new vscode.Range(currentLineNumber, currentOffset + wordIdx, currentLineNumber, currentOffset + wordIdx + word.length);
-                        diags.push(new vscode.Diagnostic(range, `Linter: Unknown command or function '${word}'`, vscode.DiagnosticSeverity.Error));
+                        diags.push(new vscode.Diagnostic(range, `Linter: Unknown command or function '${word}'`, vscode.DiagnosticSeverity.Warning));
                     }
                 }
             }
@@ -389,7 +389,7 @@ function lintSingleDocument(document) {
                 if (!before.endsWith('{') || !after.startsWith('}')) {
                     const range = new vscode.Range(i, absIndex, i, absIndex + varName.length);
                     if (!isRangeIgnored(range, ignoredZones)) {
-                        diags.push(new vscode.Diagnostic(range, `Linter: Storage variable '${varName}' must be wrapped in { }.`, vscode.DiagnosticSeverity.Error));
+                        diags.push(new vscode.Diagnostic(range, `Linter: Storage variable '${varName}' must be wrapped in { }.`, vscode.DiagnosticSeverity.Warning));
                     }
                 }
             }
